@@ -1,2 +1,2 @@
 # FeatureLabelling
-My personal modifications to the pixel feature labelling CNN made by Robet Sulej for the ProtoDUNE experiment
+My personal modifications to the pixel feature labelling model made by R. Sulej and D. Stefan
