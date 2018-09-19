@@ -6,12 +6,14 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 
+from keras.callbacks import Callback
+
 def count_events(folder, key):
     nevents = 0
     dlist = [f for f in listdir(folder) if key in f]
     dlist.sort()
     for dirname in dlist:
-        flist = [f for f in listdir(folder + '/' + dirname) if '_y.npy' in f]
+        flist = [f for f in listdir(folder + '/' + dirname) if '_y_' in f]
         for fname in flist:
             d = np.load(folder + '/' + dirname + '/' + fname)
             nevents += d.shape[0]
@@ -19,7 +21,7 @@ def count_events(folder, key):
 
 def get_patch_size(folder):
     dlist = [f for f in listdir(folder) if 'training' in f]
-    flist = [f for f in listdir(folder + '/' + dlist[0]) if '_x.npy' in f]
+    flist = [f for f in listdir(folder + '/' + dlist[0]) if '_x_' in f]
     d = np.load(folder + '/' + dlist[0] + '/' + flist[0])
     return d.shape[1], d.shape[2]
 
@@ -145,7 +147,7 @@ def get_patch(a, wire, drift, wsize, dsize):
                     patch[wpatch,dpatch] = a[w,d];
                 dpatch += 1
         wpatch += 1
-    
+
     return patch
 
 def get_vertices(A):
@@ -198,3 +200,71 @@ def read_config(cfgname):
         exit(1)
     return config
 
+
+class RecordHistory(Callback):
+
+    def on_train_begin(self, logs={}):
+
+        #losses
+        self.loss = []
+        self.em_trk_none_netout_loss = []
+        self.michel_netout_loss = []
+
+        #val losses
+        self.val_loss = []
+        self.em_trk_none_netout_val_loss = []
+        self.michel_netout_val_loss = []
+
+        #acc
+        self.em_trk_none_netout_acc = []
+        self.michel_netout_acc = []
+
+        #val acc
+        self.em_trk_none_netout_val_acc = []
+        self.michel_netout_val_acc = []
+
+    def on_epoch_end(self, batch, logs={}):
+
+        #loss
+        self.loss.append(logs.get('loss'))
+        self.em_trk_none_netout_loss.append(logs.get('em_trk_none_netout_loss'))
+        self.michel_netout_loss.append(logs.get('michel_netout_loss'))
+
+        #val loss
+        self.val_loss.append(logs.get('loss'))
+        self.em_trk_none_netout_val_loss.append(logs.get('val_em_trk_none_netout_loss'))
+        self.michel_netout_val_loss.append(logs.get('val_michel_netout_loss'))
+
+        #acc
+        self.em_trk_none_netout_acc.append( logs.get('em_trk_none_netout_acc') )
+        self.michel_netout_acc.append( logs.get('michel_netout_acc') )
+
+        #val acc
+        self.em_trk_none_netout_val_acc.append( logs.get('val_em_trk_none_netout_acc') )
+        self.michel_netout_val_acc.append( logs.get('val_michel_netout_acc') )
+
+    def print_history( self ):
+        print self.loss
+        print self.em_trk_none_netout_loss
+        print self.michel_netout_loss
+        print self.val_loss
+        print self.em_trk_none_netout_val_loss
+        print self.michel_netout_val_loss
+
+        print self.em_trk_none_netout_acc
+        print self.michel_netout_acc
+        print self.em_trk_none_netout_val_acc
+        print self.michel_netout_val_acc
+
+    def save_history( self, outdir ):
+        np.save( outdir+'loss.npy' , self.loss )
+        np.save( outdir+'em_trk_none_netout_loss.npy' , self.em_trk_none_netout_loss )
+        np.save( outdir+'michel_netout_loss.npy' , self.michel_netout_loss )
+        np.save( outdir+'val_loss.npy' , self.val_loss )
+        np.save( outdir+'em_trk_none_netout_val_loss.npy' , self.em_trk_none_netout_val_loss )
+        np.save( outdir+'michel_netout_val_loss.npy' , self.michel_netout_val_loss )
+
+        np.save( outdir+'em_trk_none_netout_acc.npy' , self.em_trk_none_netout_acc)
+        np.save( outdir+'michel_netout_acc.npy' , self.michel_netout_acc )
+        np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
+        np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )

@@ -35,10 +35,10 @@
   },
 
   "training_on_patches" : {
-    "input_dir": "cnn/for_nn",
+    "input_dir": "/data/ascarpel/dataset/",
 
     "batch_size": 256,
     "nb_classes": 4,
-    "nb_epoch": 30
+    "nb_epoch": 2
   }
 }
