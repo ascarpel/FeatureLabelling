@@ -161,6 +161,7 @@ class DataGenerator( keras.utils.Sequence ):
 
     def __init__( self, list_IDs, batch_size, dim ,path, dirname):
         """ Class initialization """
+
         self.batch_size = batch_size
         self.list_IDs = list_IDs # holds address ntuples equal for both x and y
         self.list_IDs_temp = [] # holds temps address ntuples equal for both x and y
@@ -168,14 +169,18 @@ class DataGenerator( keras.utils.Sequence ):
         self.path = path #initial directory
         self.dirname = dirname    #training or testing
 
+        self.on_epoch_end()
+
     def __len__( self ):
         """ Denotes the number of batches per epoch (mandatory) """
+
         return int(np.floor(len(self.list_IDs) / self.batch_size))
 
     def __getitem__( self, index ):
         """ Generate one batch of data ( mandatory ) """
 
         X, Y = self.__data_generation()
+
         return X, Y
 
     def on_epoch_end( self ):
@@ -184,79 +189,76 @@ class DataGenerator( keras.utils.Sequence ):
         #regenerate the index list
         self.list_IDs_temp = self.list_IDs
 
-
-     def __get_random():
+    def __get_random( self ):
          """
          Get a random address from the list,
          remove that entry so one will use it only once per epoch
+         return filenum and array index
          """
 
          #get a random number
-         index = numpy.random.randint(0, len(self.list_IDs_temp), 1)
+         index = np.random.randint(0, len(self.list_IDs_temp), 1)
 
          address = self.list_IDs_temp[index]
-         list_IDs_temp.remove( address )
+         np.delete( self.list_IDs_temp, index )
 
-         return address
+         num = int(address[0][0])
+         id = int(address[0][1])
 
-     def __data_generation( self ):
+         return num, id
+
+    def __data_generation( self ):
         """ Generates data containing batch_size samples """
 
         #Input array
-        X = np.zeros((self.batch_size, *self.dim), dtype=np.float32)
+        X = np.zeros( self.dim, dtype=np.float32)
 
-        #Output arrays (NB: dimension hardcoded because part of the model )
+        #Output arrays (NB: dimensions are hardcoded because part of the model )
         EmTrkNone = np.zeros((self.batch_size, 3), dtype=np.int32)
         Michel = np.zeros((self.batch_size, 1), dtype=np.int32)
 
         for i in range( 0, self.batch_size ):
 
-            #extract random an index and remove it from the list_IDs_temp
-            address = self.__get_random()
+            num, id = self.__get_random()
 
             #read all the files associated to it
-            fnameX = "db_view_1_x_%d.npy" % address[0]
+            fnameX = "db_view_1_x_%d.npy" % num
+
             fnameY = fnameX.replace('_x_', '_y_')
-            dataX = (np.load(self.path + '/' + self.dirname + '/' + fnameX, 'r'))[address[1]]
-            if dataX.dtype != np.dtype('float32'):
-                dataX = dataX.astype("float32")
+            X[i] = ( np.load(self.path + '/' + self.dirname + '/' + fnameX, mmap_mode='r') )[id]
 
-            dataY = (np.load(self.path + '/' + self.dirname + '/' + fnameY, 'r'))[address[1]]
-            EmTrkNone[i] = dataY[:,[0, 1, 3]]
-            Michel[i] = dataY[:,[2]]
+            dataY = ( np.load(self.path + '/' + self.dirname + '/' + fnameY, mmap_mode='r') )[id]
 
-            #TODO Data augmentation?
+            EmTrkNone[i] = [dataY[0], dataY[1], dataY[3]]
+            Michel[i] = [dataY[2]]
+
+            #TODO: data augmentation?
 
         return {'main_input': X}, {'em_trk_none_netout': EmTrkNone, 'michel_netout': Michel}
-
-
-#Define training ge
-
-
-#define the generators
-
 
 ##########################  training  ##########################################
 
 #training generator
 training_address = np.load( CNN_INPUT_DIR + '/' + 'training' + '/' + 'address_list.npy'  )
 n_train = len( training_address )
+
 training_generator = DataGenerator( training_address,
                                     batch_size,
-                                    ( PATCH_SIZE_W, PATCH_SIZE_D, 1 )
+                                    ( batch_size, PATCH_SIZE_W, PATCH_SIZE_D ),
                                     CNN_INPUT_DIR,
                                     'training'
-                                  )
+                                   )
 
 #testing generator
 testing_address = np.load( CNN_INPUT_DIR + '/' + 'testing' + '/' + 'address_list.npy'  )
 n_train = len( training_address )
-training_generator = DataGenerator( testing_address,
-                                    batch_size,
-                                    ( PATCH_SIZE_W, PATCH_SIZE_D, 1 )
-                                    CNN_INPUT_DIR,
-                                    'testing'
-                                  )
+
+validation_generator = DataGenerator( testing_address,
+                                      batch_size,
+                                      ( batch_size, PATCH_SIZE_W, PATCH_SIZE_D),
+                                      CNN_INPUT_DIR,
+                                      'testing'
+                                    )
 
 print 'Fit config:', cfg_name
 model.fit_generator(
