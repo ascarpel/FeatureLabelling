@@ -211,7 +211,7 @@ class DataGenerator( keras.utils.Sequence ):
         """ Generates data containing batch_size samples """
 
         #Input array
-        X = np.zeros( self.dim, dtype=np.float32)
+        X = np.zeros( ( self.batch_size, self.dim[0], self.dim[1], 1) , dtype=np.float32)
 
         #Output arrays (NB: dimensions are hardcoded because part of the model )
         EmTrkNone = np.zeros((self.batch_size, 3), dtype=np.int32)
@@ -223,12 +223,14 @@ class DataGenerator( keras.utils.Sequence ):
 
             #read all the files associated to it
             fnameX = "db_view_1_x_%d.npy" % num
-
             fnameY = fnameX.replace('_x_', '_y_')
-            X[i] = ( np.load(self.path + '/' + self.dirname + '/' + fnameX, mmap_mode='r') )[id]
 
+            #inport input data
+            dataX = ( np.load(self.path + '/' + self.dirname + '/' + fnameX, mmap_mode='r') )[id]
+            X[i] = dataX.reshape( self.dim[0], self.dim[1], 1 )
+
+            #inport output label
             dataY = ( np.load(self.path + '/' + self.dirname + '/' + fnameY, mmap_mode='r') )[id]
-
             EmTrkNone[i] = [dataY[0], dataY[1], dataY[3]]
             Michel[i] = [dataY[2]]
 
@@ -244,7 +246,7 @@ n_train = len( training_address )
 
 training_generator = DataGenerator( training_address,
                                     batch_size,
-                                    ( batch_size, PATCH_SIZE_W, PATCH_SIZE_D ),
+                                    ( PATCH_SIZE_W, PATCH_SIZE_D ),
                                     CNN_INPUT_DIR,
                                     'training'
                                    )
@@ -255,7 +257,7 @@ n_train = len( training_address )
 
 validation_generator = DataGenerator( testing_address,
                                       batch_size,
-                                      ( batch_size, PATCH_SIZE_W, PATCH_SIZE_D),
+                                      ( PATCH_SIZE_W, PATCH_SIZE_D ),
                                       CNN_INPUT_DIR,
                                       'testing'
                                     )
@@ -266,7 +268,9 @@ model.fit_generator(
                      validation_data=validation_generator,
                      steps_per_epoch=n_train/batch_size, epochs=nb_epoch,
                      verbose=1,
-                     callbacks=[tb, history]
+                     callbacks=[tb, history],
+                     use_multiprocessing=True,
+                     workers=6
                     )
 
 ################################################################################
