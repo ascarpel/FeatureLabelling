@@ -159,4 +159,3 @@ if save_model(model, args.output + cfg_name):
     print('All done!')
 else:
     print('Error: model not saved.')
-

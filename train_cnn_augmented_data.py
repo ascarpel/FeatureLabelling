@@ -44,7 +44,8 @@ def save_model(model, name):
     except:
         return False  # Save failed
 
-#######################  configuration  #############################
+#######################  model configuration  ##################################
+
 print 'Reading configuration...'
 config = read_config(args.config)
 
@@ -63,7 +64,7 @@ cfg_name = 'sgd_lorate'
 
 # convolutional layers:
 nb_filters1 = 48  # number of convolutional filters in the first layer
-nb_conv1 = 5      # 1st convolution kernel size
+nb_conv1 = 10      # 1st convolution kernel size
 convactfn1 = 'relu'
 
 maxpool = False   # max pooling between conv. layers
@@ -81,7 +82,8 @@ densesize2 = 32
 actfn2 = 'relu'
 drop2 = 0.2
 
-#######################  CNN definition  ############################
+#######################  model definition  #####################################
+
 print 'Compiling CNN model...'
 with tf.device('/gpu:' + args.gpu):
     main_input = Input(shape=(img_rows, img_cols, 1), name='main_input')
@@ -127,76 +129,9 @@ with tf.device('/gpu:' + args.gpu):
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
                   metrics=['accuracy'])
 
-#######################  read data sets  ############################
-n_training = count_events(CNN_INPUT_DIR, 'training')
-X_train = np.zeros((n_training, PATCH_SIZE_W, PATCH_SIZE_D, 1), dtype=np.float32)
-EmTrkNone_train = np.zeros((n_training, 3), dtype=np.int32)
-Michel_train = np.zeros((n_training, 1), dtype=np.int32)
-print 'Training data size:', n_training, 'events; patch size:', PATCH_SIZE_W, 'x', PATCH_SIZE_D
 
-ntot = 0
-subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'training' in f]
-subdirs.sort()
-for dirname in subdirs:
-    print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
-    for fnameX in filesX:
-        print '...training data', fnameX
-        fnameY = fnameX.replace('_x_', '_y_')
-        dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
-        if dataX.dtype != np.dtype('float32'):
-            dataX = dataX.astype("float32")
-        dataY = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameY)
-        n = dataY.shape[0]
-        X_train[ntot:ntot+n] = dataX.reshape(n, img_rows, img_cols, 1)
-        EmTrkNone_train[ntot:ntot+n] = dataY[:,[0, 1, 3]]
-        Michel_train[ntot:ntot+n] = dataY[:,[2]]
-        ntot += n
-print ntot, 'events ready'
+##########################  callbacks  #########################################
 
-n_testing = count_events(CNN_INPUT_DIR, 'testing')
-X_test = np.zeros((n_testing, PATCH_SIZE_W, PATCH_SIZE_D, 1), dtype=np.float32)
-EmTrkNone_test = np.zeros((n_testing, 3), dtype=np.int32)
-Michel_test = np.zeros((n_testing, 1), dtype=np.int32)
-print 'Testing data size:', n_testing, 'events'
-
-ntot = 0
-subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'testing' in f]
-subdirs.sort()
-for dirname in subdirs:
-    print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
-    for fnameX in filesX:
-        print '...testing data', fnameX
-        fnameY = fnameX.replace('_x_', '_y_')
-        dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
-        if dataX.dtype != np.dtype('float32'):
-            dataX = dataX.astype("float32")
-        dataY = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameY)
-        n = dataY.shape[0]
-        X_test[ntot:ntot+n] = dataX.reshape(n, img_rows, img_cols, 1)
-        EmTrkNone_test[ntot:ntot+n] = dataY[:,[0, 1, 3]]
-        Michel_test[ntot:ntot+n] = dataY[:,[2]]
-        ntot += n
-print ntot, 'events ready'
-
-dataX = None
-dataY = None
-
-print 'Training', X_train.shape, 'testing', X_test.shape
-
-##########################  training  ###############################
-datagen = ImageDataGenerator(
-                featurewise_center=False, samplewise_center=False,
-                featurewise_std_normalization=False,
-                samplewise_std_normalization=False,
-                zca_whitening=False,
-                rotation_range=0, width_shift_range=0, height_shift_range=0,
-                horizontal_flip=True, # randomly flip images
-                vertical_flip=False)  # only horizontal flip
-datagen.fit(X_train)
-
-#define callbacks
 tb = TensorBoard( log_dir=args.output+'/logs',
                   histogram_freq=0,
                   batch_size=batch_size,
@@ -205,40 +140,134 @@ tb = TensorBoard( log_dir=args.output+'/logs',
                 )
 history = RecordHistory()
 
-def generate_data_generator(generator, X, Y1, Y2, b):
-    genY1 = generator.flow(X, Y1, batch_size=b, seed=7)
-    genY2 = generator.flow(X, Y2, batch_size=b, seed=7)
-    while True:
-            g1 = genY1.next()
-            g2 = genY2.next()
-            yield {'main_input': g1[0]}, {'em_trk_none_netout': g1[1], 'michel_netout': g2[1]}
+##########################  generator  #########################################
+
+#datagen = ImageDataGenerator(
+#                featurewise_center=False, samplewise_center=False,
+#                featurewise_std_normalization=False,
+#                samplewise_std_normalization=False,
+#                zca_whitening=False,
+#                rotation_range=0, width_shift_range=0, height_shift_range=0,
+#                horizontal_flip=True, # randomly flip images
+#                vertical_flip=False)  # only horizontal flip
+#datagen.fit(X_train)
+
+# Implement DataGenerator class inheriting the Sequence object
+
+class DataGenerator( keras.utils.Sequence ):
+    """
+    Description here
+    """
+
+    def __init__( self, list_IDs, batch_size, dim ,path, dirname):
+        """ Class initialization """
+        self.batch_size = batch_size
+        self.list_IDs = list_IDs # holds address ntuples equal for both x and y
+        self.list_IDs_temp = [] # holds temps address ntuples equal for both x and y
+        self.dim = dim # ntuples with the patch dimension from config file
+        self.path = path #initial directory
+        self.dirname = dirname    #training or testing
+
+    def __len__( self ):
+        """ Denotes the number of batches per epoch (mandatory) """
+        return int(np.floor(len(self.list_IDs) / self.batch_size))
+
+    def __getitem__( self, index ):
+        """ Generate one batch of data ( mandatory ) """
+
+        X, Y = self.__data_generation()
+        return X, Y
+
+    def on_epoch_end( self ):
+        """ Update indeces after each epoch """
+
+        #regenerate the index list
+        self.list_IDs_temp = self.list_IDs
+
+
+     def __get_random():
+         """
+         Get a random address from the list,
+         remove that entry so one will use it only once per epoch
+         """
+
+         #get a random number
+         index = numpy.random.randint(0, len(self.list_IDs_temp), 1)
+
+         address = self.list_IDs_temp[index]
+         list_IDs_temp.remove( address )
+
+         return address
+
+     def __data_generation( self ):
+        """ Generates data containing batch_size samples """
+
+        #Input array
+        X = np.zeros((self.batch_size, *self.dim), dtype=np.float32)
+
+        #Output arrays (NB: dimension hardcoded because part of the model )
+        EmTrkNone = np.zeros((self.batch_size, 3), dtype=np.int32)
+        Michel = np.zeros((self.batch_size, 1), dtype=np.int32)
+
+        for i in range( 0, self.batch_size ):
+
+            #extract random an index and remove it from the list_IDs_temp
+            address = self.__get_random()
+
+            #read all the files associated to it
+            fnameX = "db_view_1_x_%d.npy" % address[0]
+            fnameY = fnameX.replace('_x_', '_y_')
+            dataX = (np.load(self.path + '/' + self.dirname + '/' + fnameX, 'r'))[address[1]]
+            if dataX.dtype != np.dtype('float32'):
+                dataX = dataX.astype("float32")
+
+            dataY = (np.load(self.path + '/' + self.dirname + '/' + fnameY, 'r'))[address[1]]
+            EmTrkNone[i] = dataY[:,[0, 1, 3]]
+            Michel[i] = dataY[:,[2]]
+
+            #TODO Data augmentation?
+
+        return {'main_input': X}, {'em_trk_none_netout': EmTrkNone, 'michel_netout': Michel}
+
+
+#Define training ge
+
+
+#define the generators
+
+
+##########################  training  ##########################################
+
+#training generator
+training_address = np.load( CNN_INPUT_DIR + '/' + 'training' + '/' + 'address_list.npy'  )
+n_train = len( training_address )
+training_generator = DataGenerator( training_address,
+                                    batch_size,
+                                    ( PATCH_SIZE_W, PATCH_SIZE_D, 1 )
+                                    CNN_INPUT_DIR,
+                                    'training'
+                                  )
+
+#testing generator
+testing_address = np.load( CNN_INPUT_DIR + '/' + 'testing' + '/' + 'address_list.npy'  )
+n_train = len( training_address )
+training_generator = DataGenerator( testing_address,
+                                    batch_size,
+                                    ( PATCH_SIZE_W, PATCH_SIZE_D, 1 )
+                                    CNN_INPUT_DIR,
+                                    'testing'
+                                  )
 
 print 'Fit config:', cfg_name
-h = model.fit_generator(
-              generate_data_generator(datagen, X_train, EmTrkNone_train, Michel_train, b=batch_size),
-              validation_data=(
-                  {'main_input': X_test},
-                  {'em_trk_none_netout': EmTrkNone_test, 'michel_netout': Michel_test}),
-              steps_per_epoch=X_train.shape[0]/batch_size, epochs=nb_epoch,
-              verbose=1,
-              callbacks=[tb, history])
+model.fit_generator(
+                     generator=training_generator,
+                     validation_data=validation_generator,
+                     steps_per_epoch=n_train/batch_size, epochs=nb_epoch,
+                     verbose=1,
+                     callbacks=[tb, history]
+                    )
 
-X_train = None
-EmTrkNone_train = None
-Michel_train = None
-
-score = model.evaluate({'main_input': X_test},
-                       {'em_trk_none_netout': EmTrkNone_test, 'michel_netout': Michel_test},
-                       verbose=0)
-print('Test score:', score)
-
-X_test = None
-EmTrkNone_test = None
-Michel_test = None
-#####################################################################
-
-#print h.history['loss']
-#print h.history['val_loss']
+################################################################################
 
 history.print_history()
 history.save_history(args.output)
