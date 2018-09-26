@@ -9,7 +9,7 @@ import os, json
 import argparse
 import h5py
 
-from utils import get_data, get_patch
+from utils import get_data, get_patch, read_config
 
 def main(argv):
 
