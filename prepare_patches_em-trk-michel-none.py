@@ -7,14 +7,16 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 import argparse
+import h5py
 
 from utils import get_data, get_patch
 
 def main(argv):
 
+    #### parse inputs ##########################################################
+
     parser = argparse.ArgumentParser(description='Makes training data set for EM vs track separation')
     #parser.add_argument('-c', '--config', help="JSON with script configuration", default='config.json')
-    #parser.add_argument('-t', '--type', help="Input file format")
     parser.add_argument('-i', '--input', help="Input directory")
     parser.add_argument('-o', '--output', help="Output directory")
     args = parser.parse_args()
@@ -22,13 +24,6 @@ def main(argv):
     #config = read_config(args.config)
 
     print '#'*50,'\nPrepare data for CNN'
-
-    #if args.type is None: INPUT_TYPE   =  'root' #config['prepare_data_em_track']['input_type']
-    #else: INPUT_TYPE = args.type
-    #if args.input is None: INPUT_DIR   = config['prepare_data_em_track']['input_dir']
-    #else: INPUT_DIR = args.input
-    #if args.output is None: OUTPUT_DIR = config['prepare_data_em_track']['output_dir']
-    #else: OUTPUT_DIR = args.output
 
     INPUT_TYPE =  'root'
     INPUT_FILE  = args.input
@@ -60,9 +55,18 @@ def main(argv):
 
     print 'Blur kernel', blur_kernel, 'noise RMS', white_noise
 
+    ##### define db ############################################################
+
+    #database:
+        #group 1: data
+            #1 dataset per patch ( upper size max_capacity )
+        #group 2: labels
+            #1 dataset per label ( upper size max_capacity )
+
     max_capacity = 20000
-    db = np.zeros((max_capacity, PATCH_SIZE_W, PATCH_SIZE_D), dtype=np.float32)
-    db_y = np.zeros((max_capacity, 4), dtype=np.int32)
+    db = h5py.File(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'.hdf5', "w")
+    grp_data = db.create_group("data")
+    grp_labels = db.create_group("labels")
 
     patch_area = PATCH_SIZE_W * PATCH_SIZE_D
 
@@ -206,8 +210,22 @@ def main(argv):
                         continue
 
                     if cnt_ind < max_capacity:
-                        db[cnt_ind] = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
-                        db_y[cnt_ind] = target
+
+
+
+                         db_x = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
+                         db_y= target
+
+                         dataset_name_x = 'data_%s' % cnt_ind
+                         dataset_name_y = 'label_%s' % cnt_ind
+
+                         #save output to datasets
+                         grp_data.create_dataset( dataset_name_x , db_x )
+                         grp_labels.create_dataset( dataset_name_y , db_y )
+
+                         #flush buffer to memory
+                         db.flush()
+
                         cnt_ind += 1
                     else:
                         print 'MAX CAPACITY REACHED!!!'
@@ -217,8 +235,8 @@ def main(argv):
 
     print 'Added', cnt_ind, 'tracks:', cnt_trk, 'showers:', cnt_sh, 'michels:', cnt_michel, 'empty:', cnt_void
 
-    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_x', db[:cnt_ind])
-    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_y', db_y[:cnt_ind])
+    #close dataset
+    db.close()
 
 if __name__ == "__main__":
     main(argv)
