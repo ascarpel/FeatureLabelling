@@ -231,7 +231,7 @@ class RecordHistory(Callback):
         self.michel_netout_loss.append(logs.get('michel_netout_loss'))
 
         #val loss
-        self.val_loss.append(logs.get('loss'))
+        self.val_loss.append(logs.get('val_loss'))
         self.em_trk_none_netout_val_loss.append(logs.get('val_em_trk_none_netout_loss'))
         self.michel_netout_val_loss.append(logs.get('val_michel_netout_loss'))
 

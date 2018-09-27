@@ -63,7 +63,7 @@ cfg_name = 'sgd_lorate'
 
 # convolutional layers:
 nb_filters1 = 48  # number of convolutional filters in the first layer
-nb_conv1 = 5      # 1st convolution kernel size
+nb_conv1 = 10      # 1st convolution kernel size
 convactfn1 = 'relu'
 
 maxpool = False   # max pooling between conv. layers
@@ -129,6 +129,7 @@ with tf.device('/gpu:' + args.gpu):
 
 #######################  read data sets  ############################
 n_training = count_events(CNN_INPUT_DIR, 'training')
+print n_training
 X_train = np.zeros((n_training, PATCH_SIZE_W, PATCH_SIZE_D, 1), dtype=np.float32)
 EmTrkNone_train = np.zeros((n_training, 3), dtype=np.int32)
 Michel_train = np.zeros((n_training, 1), dtype=np.int32)
@@ -198,7 +199,7 @@ datagen.fit(X_train)
 
 #define callbacks
 tb = TensorBoard( log_dir=args.output+'/logs',
-                  histogram_freq=0,
+                  histogram_freq=X_train.shape[0],
                   batch_size=batch_size,
                   write_graph=True,
                   write_images=True

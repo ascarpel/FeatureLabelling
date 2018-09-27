@@ -39,6 +39,6 @@
 
     "batch_size": 256,
     "nb_classes": 4,
-    "nb_epoch": 2
+    "nb_epoch": 30
   }
 }
