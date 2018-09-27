@@ -147,11 +147,15 @@ def make_array_list(folder):
 
     address_list = [] #np.empty(1, dtype=int)
 
-    for file in os.listdir(folder):
+    files = [ f for f in os.listdir(folder) if '.hdf5' in f ]
+
+    for file in files:
 
         print 'reading '+file
 
+        view = get_view(file)
         num = get_num(file)
+
         try:
             db = h5py.File( folder+file , 'r')
             labels =  db.get('labels')
@@ -161,7 +165,10 @@ def make_array_list(folder):
 
         for key in labels.keys():
             id =  int( key.split('_')[-1] )
-            address_list.append( (num, id) )
+
+            address_list.append( (view, num, id) )
+
+        db.close()
 
     np.save(folder+"/address_list.npy", address_list)
 
