@@ -3,7 +3,7 @@
 ################################################################################
 #
 # Create the testing and training samples
-# Usage: pyton prepareset.py size_training files size_testing files first_file_num last_file_num
+# Usage: pyton prepareset.py size_training files size_testing files first_file_num last_file_num False/True
 #
 ################################################################################
 
@@ -22,8 +22,7 @@ def make_sample_array( training_size, testing_size, folder, bounds ):
 
     previous_message=""
 
-    f_x = [f for f in os.listdir(folder) if '_x_' in f]
-    for file in f_x:
+    for file in os.listdir(folder):
 
         this_message = 'Complete: %d %%' % int(float(sum)/float(training_size+testing_size)*100.)
         if previous_message != this_message:
@@ -161,13 +160,12 @@ def make_array_list(folder):
             continue
 
         for key in labels.keys():
-            id = int( key.split('-')[-1] )
+            id =  int( key.split('_')[-1] )
             address_list.append( (num, id) )
 
     np.save(folder+"/address_list.npy", address_list)
 
     return
-
 
 def main():
 
@@ -177,12 +175,18 @@ def main():
     testing_size = int(sys.argv[2])
     first_file =  int(sys.argv[3])
     last_file = int(sys.argv[4])
+    makelist = sys.argv[5]
 
     make_sample_array( training_size, testing_size, folder+inputdir, (first_file, last_file) )
 
     #remove dangling symlinks
     remove_links( "./training/" )
     remove_links( "./testing/"  )
+
+    #make input lists
+    if makelist:
+        make_array_list( "./training/" )
+        make_array_list( "./testing/" )
 
     print "All done"
 
