@@ -2,10 +2,10 @@
   "prepare_data_em_track" : {
     "input_type": "root",
     "module_name": "datadump",
-    "input_dir": "/eos/user/a/ascarpel/CNN/protodune/root/1",
-    "output_dir": "/eos/user/a/ascarpel/CNN/protodune/numpy/1",
-    "patch_size_w": 66,
-    "patch_size_d": 68,
+    "input_dir": "/eos/user/a/ascarpel/CNN/neutrino/root/1",
+    "output_dir": "./",
+    "patch_size_w": 44,
+    "patch_size_d": 48,
 
     "doing_nue": false,
     "selected_view_idx": 0,

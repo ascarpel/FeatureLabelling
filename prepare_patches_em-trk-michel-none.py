@@ -9,19 +9,18 @@ import os, json
 import argparse
 import h5py
 
-from utils import get_data, get_patch, read_config
+from utils import get_data, get_patch
 
 def main(argv):
 
     #### parse inputs ##########################################################
 
     parser = argparse.ArgumentParser(description='Makes training data set for EM vs track separation')
-    parser.add_argument('-c', '--config', help="JSON with script configuration", default='config.json')
     parser.add_argument('-i', '--input', help="Input directory")
     parser.add_argument('-o', '--output', help="Output directory")
     args = parser.parse_args()
 
-    config = read_config(args.config)
+    #config = read_config(args.config)
 
     print '#'*50,'\nPrepare data for CNN'
 
@@ -29,25 +28,25 @@ def main(argv):
     INPUT_FILE  = args.input
     OUTPUT_DIR = args.output
 
-    PATCH_SIZE_W = config['prepare_data_em_track']['patch_size_w']
-    PATCH_SIZE_D = config['prepare_data_em_track']['patch_size_d']
+    PATCH_SIZE_W = 66 #config['prepare_data_em_track']['patch_size_w']
+    PATCH_SIZE_D = 68 #config['prepare_data_em_track']['patch_size_d']
 
     print 'Using %s as input dir, and %s as output dir' % (INPUT_FILE, OUTPUT_DIR)
     if INPUT_TYPE == 'root': print 'Reading from ROOT file'
     else: print 'Reading from TEXT files'
     print '#'*50
 
-    doing_nue = config['prepare_data_em_track']['doing_nue']                       # set to true for nu_e events (will skip more showers)
-    selected_view_idx = config['prepare_data_em_track']['selected_view_idx']       # set the view id
-    patch_fraction = config['prepare_data_em_track']['patch_fraction']             # percent of used patches
-    empty_fraction = config['prepare_data_em_track']['empty_fraction']             # percent of "empty background" patches
-    clean_track_fraction = config['prepare_data_em_track']['clean_track_fraction'] # percent of selected patches, where only a clean track is present
-    muon_track_fraction = config['prepare_data_em_track']['muon_track_fraction']   # ***** new: preselect muos, they are many *****
-    crop_event = config['prepare_data_em_track']['crop_event']                     # use true only if no crop on LArSoft level and not a noise dump
+    doing_nue = False #config['prepare_data_em_track']['doing_nue']                       # set to true for nu_e events (will skip more showers)
+    selected_view_idx = 1 #config['prepare_data_em_track']['selected_view_idx']       # set the view id
+    patch_fraction = 30.0 # config['prepare_data_em_track']['patch_fraction']             # percent of used patches
+    empty_fraction = 0.1 #config['prepare_data_em_track']['empty_fraction']             # percent of "empty background" patches
+    clean_track_fraction = 20.0 #config['prepare_data_em_track']['clean_track_fraction'] # percent of selected patches, where only a clean track is present
+    muon_track_fraction = 30.0 #config['prepare_data_em_track']['muon_track_fraction']   # ***** new: preselect muos, they are many *****
+    crop_event = False #config['prepare_data_em_track']['crop_event']                     # use true only if no crop on LArSoft level and not a noise dump
 
-    blur_kernel = np.asarray(config['prepare_data_em_track']['blur'])              # add blur in wire direction with given kernel if it is not empty (only for tests)
-    white_noise = config['prepare_data_em_track']['noise']                         # add gauss noise with given sigma if value > 0 (only for tests)
-    coherent_noise = config['prepare_data_em_track']['coherent']                   # add coherent (groups of 32 wires) gauss noise with given sigma if value > 0 (only for tests)
+    blur_kernel = np.asarray([]) #np.asarray(config['prepare_data_em_track']['blur'])              # add blur in wire direction with given kernel if it is not empty (only for tests)
+    white_noise = 0 #config['prepare_data_em_track']['noise']                         # add gauss noise with given sigma if value > 0 (only for tests)
+    coherent_noise = 0 # config['prepare_data_em_track']['coherent']                   # add coherent (groups of 32 wires) gauss noise with given sigma if value > 0 (only for tests)
 
     print 'Using', patch_fraction, '% of data from view', selected_view_idx
     print 'Using', muon_track_fraction, '% of muon points'
@@ -63,7 +62,7 @@ def main(argv):
         #group 2: labels
             #1 dataset per label ( upper size max_capacity )
 
-    max_capacity = 20000
+    max_capacity = 10000
     db = h5py.File(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'.hdf5', "w")
     grp_data = db.create_group("data")
     grp_labels = db.create_group("labels")
