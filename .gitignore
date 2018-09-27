@@ -1,6 +1,7 @@
 dataset/**/*.hdf5
 dataset/**/*.h5
 dataset/**/*.npy
+dataset/**/*.pyc
 production/**/*.txt
 ./*.pyc
 ./*.txt
