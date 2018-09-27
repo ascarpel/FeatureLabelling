@@ -24,10 +24,11 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import model_from_json
 from keras.optimizers import SGD
 from keras.utils import np_utils
+from keras.callbacks import TensorBoard
 from os.path import exists, isfile, join
 import json
 
-from utils import read_config, get_patch_size, count_events, shuffle_in_place
+from utils import read_config, get_patch_size, count_events, shuffle_in_place, RecordHistory
 
 def load_model(name):
     with open(name + '_architecture.json') as f:
@@ -69,7 +70,8 @@ with tf.device('/gpu:' + args.gpu):
     sgd = SGD(lr=0.002, decay=1e-5, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd,
                   loss={'em_trk_none_netout': 'categorical_crossentropy', 'michel_netout': 'mean_squared_error'},
-                  loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.0})
+                  loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.0},
+                  metrics=['accuracy'])
 
 #######################  read data sets  ############################
 n_training = count_events(CNN_INPUT_DIR, 'training')
@@ -83,10 +85,10 @@ subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'training' in f]
 subdirs.sort()
 for dirname in subdirs:
     print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x.npy' in f]
+    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
     for fnameX in filesX:
         print '...training data', fnameX
-        fnameY = fnameX.replace('_x.npy', '_y.npy')
+        fnameY = fnameX.replace('_x_', '_y_')
         dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
         if dataX.dtype != np.dtype('float32'):
             dataX = dataX.astype("float32")
@@ -109,10 +111,10 @@ subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'testing' in f]
 subdirs.sort()
 for dirname in subdirs:
     print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x.npy' in f]
+    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
     for fnameX in filesX:
         print '...testing data', fnameX
-        fnameY = fnameX.replace('_x.npy', '_y.npy')
+        fnameY = fnameX.replace('_x_', '_y_')
         dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
         if dataX.dtype != np.dtype('float32'):
             dataX = dataX.astype("float32")
@@ -140,6 +142,15 @@ datagen = ImageDataGenerator(
                 vertical_flip=False)  # only horizontal flip
 datagen.fit(X_train)
 
+#define tensorboard callback in output folder logs
+tb = TensorBoard( log_dir=args.output+'/logs',
+                  histogram_freq=0,
+                  batch_size=batch_size,
+                  write_graph=True,
+                  write_images=True
+                )
+history = RecordHistory()
+
 def generate_data_generator(generator, X, Y1, Y2, b):
     genY1 = generator.flow(X, Y1, batch_size=b, seed=7)
     genY2 = generator.flow(X, Y2, batch_size=b, seed=7)
@@ -155,7 +166,8 @@ h = model.fit_generator(
                   {'main_input': X_test},
                   {'em_trk_none_netout': EmTrkNone_test, 'michel_netout': Michel_test}),
               steps_per_epoch=X_train.shape[0]/batch_size, epochs=nb_epoch,
-              verbose=1)
+              verbose=1,
+              callbacks=[tb, history])
 
 X_train = None
 EmTrkNone_train = None
@@ -171,11 +183,14 @@ EmTrkNone_test = None
 Michel_test = None
 #####################################################################
 
-print h.history['loss']
-print h.history['val_loss']
 
-if save_model(model, args.output + cfg_name):
+#print h.history['loss']
+#print h.history['val_loss']
+
+history.print_history()
+history.save_history(args.output)
+
+if save_model(model, args.output + cfg_name.split('/')[-1]):
     print('All done!')
 else:
     print('Error: model not saved.')
-
