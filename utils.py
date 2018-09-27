@@ -1,5 +1,6 @@
 from ROOT import TFile
 from root_numpy import hist2array
+import h5py
 
 import numpy as np
 from os import listdir
@@ -21,9 +22,12 @@ def count_events(folder, key):
 
 def get_patch_size(folder):
     dlist = [f for f in listdir(folder) if 'training' in f]
-    flist = [f for f in listdir(folder + '/' + dlist[0]) if '_x_' in f]
-    d = np.load(folder + '/' + dlist[0] + '/' + flist[0])
-    return d.shape[1], d.shape[2]
+    flist = [f for f in listdir(folder + '/' + dlist[0]) if '.hdf5' in f]
+    db= h5py.File( folder+'/'+dlist[0]+'/'+flist[0] , 'r')
+    d = db.get( 'data/data_0' )
+    #db.close()
+
+    return d.shape[0], d.shape[1]
 
 def get_event_bounds(A, drift_margin = 0):
     # get center with 99% of signal

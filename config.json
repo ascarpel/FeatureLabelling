@@ -35,7 +35,7 @@
   },
 
   "training_on_patches" : {
-    "input_dir": "/data/ascarpel/dataset/",
+    "input_dir": "dataset/",
 
     "batch_size": 256,
     "nb_classes": 4,

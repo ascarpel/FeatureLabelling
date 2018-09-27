@@ -33,6 +33,8 @@ from keras.callbacks import TensorBoard
 from os.path import exists, isfile, join
 import json
 
+import h5py
+
 from utils import read_config, get_patch_size, count_events, RecordHistory
 
 def save_model(model, name):
@@ -124,10 +126,12 @@ with tf.device('/gpu:' + args.gpu):
 
     sgd = SGD(lr=0.01, decay=1e-5, momentum=0.9, nesterov=True)
     model = Model(inputs=[main_input], outputs=[em_trk_none, michel])
-    model.compile(optimizer=sgd,
+    model.compile(
+                  optimizer=sgd,
                   loss={'em_trk_none_netout': 'categorical_crossentropy', 'michel_netout': 'mean_squared_error'},
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
-                  metrics=['accuracy'])
+                  metrics=['accuracy']
+                  )
 
 
 ##########################  callbacks  #########################################
@@ -223,14 +227,15 @@ class DataGenerator( keras.utils.Sequence ):
             #get random numbers and read all the files associated to it
             view, num, id = self.__get_random()
 
-            fname = "db_view_%d_%d.hdf5" % view, num
-            db = h5py.File( folder+file , 'r')
+            fname = "db_view_%d_%d.hdf5" % (view, num)
+
+            db = h5py.File( self.path+'/'+self.dirname+'/'+fname , 'r')
             input_dataset_name = 'data/data_%d' % id
             label_dataset_name = 'labels/label_%d' % id
 
             #inport input data
             dataX = db.get( input_dataset_name )
-            X[i] = dataX.reshape( self.dim[0], self.dim[1], 1 )
+            X[i] = np.asarray( dataX ).reshape( self.dim[0], self.dim[1], 1 )
 
             #inport output label
             dataY = db.get( label_dataset_name )
