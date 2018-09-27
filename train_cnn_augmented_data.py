@@ -202,10 +202,11 @@ class DataGenerator( keras.utils.Sequence ):
          address = self.list_IDs_temp[index]
          np.delete( self.list_IDs_temp, index )
 
-         num = int(address[0][0])
-         id = int(address[0][1])
+         view = int(address[0][0])
+         num = int(address[0][1])
+         id = int(address[0][2])
 
-         return num, id
+         return view, num, id
 
     def __data_generation( self ):
         """ Generates data containing batch_size samples """
@@ -219,20 +220,24 @@ class DataGenerator( keras.utils.Sequence ):
 
         for i in range( 0, self.batch_size ):
 
-            num, id = self.__get_random()
+            #get random numbers and read all the files associated to it
+            view, num, id = self.__get_random()
 
-            #read all the files associated to it
-            fnameX = "db_view_1_x_%d.npy" % num
-            fnameY = fnameX.replace('_x_', '_y_')
+            fname = "db_view_%d_%d.hdf5" % view, num
+            db = h5py.File( folder+file , 'r')
+            input_dataset_name = 'data/data_%d' % id
+            label_dataset_name = 'labels/label_%d' % id
 
             #inport input data
-            dataX = ( np.load(self.path + '/' + self.dirname + '/' + fnameX, mmap_mode='r') )[id]
+            dataX = db.get( input_dataset_name )
             X[i] = dataX.reshape( self.dim[0], self.dim[1], 1 )
 
             #inport output label
-            dataY = ( np.load(self.path + '/' + self.dirname + '/' + fnameY, mmap_mode='r') )[id]
+            dataY = db.get( label_dataset_name )
             EmTrkNone[i] = [dataY[0], dataY[1], dataY[3]]
             Michel[i] = [dataY[2]]
+
+            db.close()
 
             #TODO: data augmentation?
 
@@ -241,7 +246,7 @@ class DataGenerator( keras.utils.Sequence ):
 ##########################  training  ##########################################
 
 #training generator
-training_address = np.load( CNN_INPUT_DIR + '/' + 'training' + '/' + 'address_list.npy'  )
+training_address = np.load( CNN_INPUT_DIR+'/training/address_list.npy'  )
 n_train = len( training_address )
 
 training_generator = DataGenerator( training_address,
@@ -252,7 +257,7 @@ training_generator = DataGenerator( training_address,
                                    )
 
 #testing generator
-testing_address = np.load( CNN_INPUT_DIR + '/' + 'testing' + '/' + 'address_list.npy'  )
+testing_address = np.load( CNN_INPUT_DIR+'/testing/address_list.npy' )
 n_train = len( training_address )
 
 validation_generator = DataGenerator( testing_address,
@@ -270,7 +275,7 @@ model.fit_generator(
                      verbose=1,
                      callbacks=[tb, history],
                      use_multiprocessing=True,
-                     workers=6
+                     workers=2
                     )
 
 ################################################################################
