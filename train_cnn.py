@@ -130,88 +130,12 @@ with tf.device('/gpu:' + args.gpu):
                   optimizer=sgd,
                   loss={'em_trk_none_netout': 'categorical_crossentropy', 'michel_netout': 'mean_squared_error'},
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
-<<<<<<< HEAD
-                  metrics=['accuracy'])
-
-#######################  read data sets  ############################
-n_training = count_events(CNN_INPUT_DIR, 'training')
-print n_training
-X_train = np.zeros((n_training, PATCH_SIZE_W, PATCH_SIZE_D, 1), dtype=np.float32)
-EmTrkNone_train = np.zeros((n_training, 3), dtype=np.int32)
-Michel_train = np.zeros((n_training, 1), dtype=np.int32)
-print 'Training data size:', n_training, 'events; patch size:', PATCH_SIZE_W, 'x', PATCH_SIZE_D
-
-ntot = 0
-subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'training' in f]
-subdirs.sort()
-for dirname in subdirs:
-    print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
-    for fnameX in filesX:
-        print '...training data', fnameX
-        fnameY = fnameX.replace('_x_', '_y_')
-        dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
-        if dataX.dtype != np.dtype('float32'):
-            dataX = dataX.astype("float32")
-        dataY = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameY)
-        n = dataY.shape[0]
-        X_train[ntot:ntot+n] = dataX.reshape(n, img_rows, img_cols, 1)
-        EmTrkNone_train[ntot:ntot+n] = dataY[:,[0, 1, 3]]
-        Michel_train[ntot:ntot+n] = dataY[:,[2]]
-        ntot += n
-print ntot, 'events ready'
-
-n_testing = count_events(CNN_INPUT_DIR, 'testing')
-X_test = np.zeros((n_testing, PATCH_SIZE_W, PATCH_SIZE_D, 1), dtype=np.float32)
-EmTrkNone_test = np.zeros((n_testing, 3), dtype=np.int32)
-Michel_test = np.zeros((n_testing, 1), dtype=np.int32)
-print 'Testing data size:', n_testing, 'events'
-
-ntot = 0
-subdirs = [f for f in os.listdir(CNN_INPUT_DIR) if 'testing' in f]
-subdirs.sort()
-for dirname in subdirs:
-    print 'Reading data in', dirname
-    filesX = [f for f in os.listdir(CNN_INPUT_DIR + '/' + dirname) if '_x_' in f]
-    for fnameX in filesX:
-        print '...testing data', fnameX
-        fnameY = fnameX.replace('_x_', '_y_')
-        dataX = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameX)
-        if dataX.dtype != np.dtype('float32'):
-            dataX = dataX.astype("float32")
-        dataY = np.load(CNN_INPUT_DIR + '/' + dirname + '/' + fnameY)
-        n = dataY.shape[0]
-        X_test[ntot:ntot+n] = dataX.reshape(n, img_rows, img_cols, 1)
-        EmTrkNone_test[ntot:ntot+n] = dataY[:,[0, 1, 3]]
-        Michel_test[ntot:ntot+n] = dataY[:,[2]]
-        ntot += n
-print ntot, 'events ready'
-
-dataX = None
-dataY = None
-
-print 'Training', X_train.shape, 'testing', X_test.shape
-
-##########################  training  ###############################
-datagen = ImageDataGenerator(
-                featurewise_center=False, samplewise_center=False,
-                featurewise_std_normalization=False,
-                samplewise_std_normalization=False,
-                zca_whitening=False,
-                rotation_range=0, width_shift_range=0, height_shift_range=0,
-                horizontal_flip=True, # randomly flip images
-                vertical_flip=False)  # only horizontal flip
-datagen.fit(X_train)
-
-#define callbacks
-=======
                   metrics=['accuracy']
                   )
 
 
 ##########################  callbacks  #########################################
 
->>>>>>> generator
 tb = TensorBoard( log_dir=args.output+'/logs',
                   histogram_freq=X_train.shape[0],
                   batch_size=batch_size,

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from ROOT import TFile
 import numpy as np
 from sys import argv
@@ -5,47 +7,46 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 import argparse
+import h5py
 
-from utils import read_config, get_data, get_patch
+from utils import get_data, get_patch
 
 def main(argv):
 
+    #### parse inputs ##########################################################
+
     parser = argparse.ArgumentParser(description='Makes training data set for EM vs track separation')
-    parser.add_argument('-c', '--config', help="JSON with script configuration", default='config.json')
-    parser.add_argument('-t', '--type', help="Input file format")
     parser.add_argument('-i', '--input', help="Input directory")
     parser.add_argument('-o', '--output', help="Output directory")
     args = parser.parse_args()
 
-    config = read_config(args.config)
+    #config = read_config(args.config)
 
     print '#'*50,'\nPrepare data for CNN'
-    if args.type is None: INPUT_TYPE   = config['prepare_data_em_track']['input_type']
-    else: INPUT_TYPE = args.type
-    if args.input is None: INPUT_DIR   = config['prepare_data_em_track']['input_dir']
-    else: INPUT_DIR = args.input
-    if args.output is None: OUTPUT_DIR = config['prepare_data_em_track']['output_dir']
-    else: OUTPUT_DIR = args.output
 
-    PATCH_SIZE_W = config['prepare_data_em_track']['patch_size_w']
-    PATCH_SIZE_D = config['prepare_data_em_track']['patch_size_d']
+    INPUT_TYPE =  'root'
+    INPUT_FILE  = args.input
+    OUTPUT_DIR = args.output
 
-    print 'Using %s as input dir, and %s as output dir' % (INPUT_DIR, OUTPUT_DIR)
+    PATCH_SIZE_W = 66 #config['prepare_data_em_track']['patch_size_w']
+    PATCH_SIZE_D = 68 #config['prepare_data_em_track']['patch_size_d']
+
+    print 'Using %s as input dir, and %s as output dir' % (INPUT_FILE, OUTPUT_DIR)
     if INPUT_TYPE == 'root': print 'Reading from ROOT file'
     else: print 'Reading from TEXT files'
     print '#'*50
 
-    doing_nue = config['prepare_data_em_track']['doing_nue']                       # set to true for nu_e events (will skip more showers)
-    selected_view_idx = config['prepare_data_em_track']['selected_view_idx']       # set the view id
-    patch_fraction = config['prepare_data_em_track']['patch_fraction']             # percent of used patches
-    empty_fraction = config['prepare_data_em_track']['empty_fraction']             # percent of "empty background" patches
-    clean_track_fraction = config['prepare_data_em_track']['clean_track_fraction'] # percent of selected patches, where only a clean track is present
-    muon_track_fraction = config['prepare_data_em_track']['muon_track_fraction']   # ***** new: preselect muos, they are many *****
-    crop_event = config['prepare_data_em_track']['crop_event']                     # use true only if no crop on LArSoft level and not a noise dump
+    doing_nue = False #config['prepare_data_em_track']['doing_nue']                       # set to true for nu_e events (will skip more showers)
+    selected_view_idx = 1 #config['prepare_data_em_track']['selected_view_idx']       # set the view id
+    patch_fraction = 30.0 # config['prepare_data_em_track']['patch_fraction']             # percent of used patches
+    empty_fraction = 0.1 #config['prepare_data_em_track']['empty_fraction']             # percent of "empty background" patches
+    clean_track_fraction = 20.0 #config['prepare_data_em_track']['clean_track_fraction'] # percent of selected patches, where only a clean track is present
+    muon_track_fraction = 30.0 #config['prepare_data_em_track']['muon_track_fraction']   # ***** new: preselect muos, they are many *****
+    crop_event = False #config['prepare_data_em_track']['crop_event']                     # use true only if no crop on LArSoft level and not a noise dump
 
-    blur_kernel = np.asarray(config['prepare_data_em_track']['blur'])              # add blur in wire direction with given kernel if it is not empty (only for tests)
-    white_noise = config['prepare_data_em_track']['noise']                         # add gauss noise with given sigma if value > 0 (only for tests)
-    coherent_noise = config['prepare_data_em_track']['coherent']                   # add coherent (groups of 32 wires) gauss noise with given sigma if value > 0 (only for tests)
+    blur_kernel = np.asarray([]) #np.asarray(config['prepare_data_em_track']['blur'])              # add blur in wire direction with given kernel if it is not empty (only for tests)
+    white_noise = 0 #config['prepare_data_em_track']['noise']                         # add gauss noise with given sigma if value > 0 (only for tests)
+    coherent_noise = 0 # config['prepare_data_em_track']['coherent']                   # add coherent (groups of 32 wires) gauss noise with given sigma if value > 0 (only for tests)
 
     print 'Using', patch_fraction, '% of data from view', selected_view_idx
     print 'Using', muon_track_fraction, '% of muon points'
@@ -53,9 +54,18 @@ def main(argv):
 
     print 'Blur kernel', blur_kernel, 'noise RMS', white_noise
 
-    max_capacity = 1700000
-    db = np.zeros((max_capacity, PATCH_SIZE_W, PATCH_SIZE_D), dtype=np.float32)
-    db_y = np.zeros((max_capacity, 4), dtype=np.int32)
+    ##### define db ############################################################
+
+    #database:
+        #group 1: data
+            #1 dataset per patch ( upper size max_capacity )
+        #group 2: labels
+            #1 dataset per label ( upper size max_capacity )
+
+    max_capacity = 10000
+    db = h5py.File(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'.hdf5', "w")
+    grp_data = db.create_group("data")
+    grp_labels = db.create_group("labels")
 
     patch_area = PATCH_SIZE_W * PATCH_SIZE_D
 
@@ -70,15 +80,11 @@ def main(argv):
     rootFile = None
     rootModule = 'datadump'
     event_list = []
-    if INPUT_TYPE == "root":
-        fnames = [f for f in os.listdir(INPUT_DIR) if '.root' in f]
-        for n in fnames:
-            rootFile = TFile(INPUT_DIR+'/'+n)
-            keys = [rootModule+'/'+k.GetName()[:-4] for k in rootFile.Get(rootModule).GetListOfKeys() if '_raw' in k.GetName()]
-            event_list.append((rootFile, keys))
-    else:
-        keys = [f[:-4] for f in os.listdir(INPUT_DIR) if '.raw' in f] # only main part of file name, without extension
-        event_list.append((INPUT_DIR, keys)) # single entry in the list of txt files
+    fnames = INPUT_FILE
+
+    rootFile = TFile(fnames)
+    keys = [rootModule+'/'+k.GetName()[:-4] for k in rootFile.Get(rootModule).GetListOfKeys() if '_raw' in k.GetName()]
+    event_list.append((rootFile, keys))
 
     for entry in event_list:
         folder = entry[0]
@@ -119,9 +125,9 @@ def main(argv):
                     is_raw_zero = (raw[i,j] < 0.01)
                     is_michel = (pdg[i,j] & 0xF000 == 0x2000) # has michel flag set, wont skip it
                     is_muon = (pdg[i,j] & 0xFFF == 13)
-                
+
                     is_vtx = (vtx_map[i,j] > 0)
-                
+
                     x_start = np.max([0, i - PATCH_SIZE_W/2])
                     x_stop  = np.min([raw.shape[0], x_start + PATCH_SIZE_W])
 
@@ -137,7 +143,7 @@ def main(argv):
                         if np.count_nonzero(pdg_patch) > 2:
                             is_mu_near_stop = True
                             sel_mu_near_stop += 1
-                
+
                     vtx_patch = vtx_map[x_start+2:x_stop-2, y_start+2:y_stop-2]
                     near_vtx_count = np.count_nonzero(vtx_patch)
 
@@ -203,9 +209,21 @@ def main(argv):
                         continue
 
                     if cnt_ind < max_capacity:
-                        db[cnt_ind] = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
-                        db_y[cnt_ind] = target
-                        cnt_ind += 1
+
+                         db_x = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
+                         db_y= target
+
+                         dataset_name_x = 'data_%s' % cnt_ind
+                         dataset_name_y = 'label_%s' % cnt_ind
+
+                         #save output to datasets
+                         grp_data.create_dataset( dataset_name_x , data=db_x )
+                         grp_labels.create_dataset( dataset_name_y , data=db_y )
+
+                         #flush buffer to memory
+                         db.flush()
+
+                         cnt_ind += 1
                     else:
                         print 'MAX CAPACITY REACHED!!!'
                         break
@@ -214,9 +232,8 @@ def main(argv):
 
     print 'Added', cnt_ind, 'tracks:', cnt_trk, 'showers:', cnt_sh, 'michels:', cnt_michel, 'empty:', cnt_void
 
-    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_x', db[:cnt_ind])
-    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_y', db_y[:cnt_ind])
+    #close dataset
+    db.close()
 
 if __name__ == "__main__":
     main(argv)
-
