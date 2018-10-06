@@ -35,7 +35,9 @@ import json
 
 import h5py
 
-from utils import read_config, get_patch_size, count_events, RecordHistory
+from utils import read_config, get_patch_size, count_events
+
+#######################  save model function  ##################################
 
 def save_model(model, name):
     try:
@@ -45,6 +47,77 @@ def save_model(model, name):
         return True   # Save successful
     except:
         return False  # Save failed
+
+#######################  keras callbacks class  ################################
+
+class RecordHistory(Callback):
+
+    def on_train_begin(self, logs={}):
+
+        #losses
+        self.loss = []
+        self.em_trk_none_netout_loss = []
+        self.michel_netout_loss = []
+
+        #val losses
+        self.val_loss = []
+        self.em_trk_none_netout_val_loss = []
+        self.michel_netout_val_loss = []
+
+        #acc
+        self.em_trk_none_netout_acc = []
+        self.michel_netout_acc = []
+
+        #val acc
+        self.em_trk_none_netout_val_acc = []
+        self.michel_netout_val_acc = []
+
+    def on_epoch_end(self, batch, logs={}):
+
+        #loss
+        self.loss.append(logs.get('loss'))
+        self.em_trk_none_netout_loss.append(logs.get('em_trk_none_netout_loss'))
+        self.michel_netout_loss.append(logs.get('michel_netout_loss'))
+
+        #val loss
+        self.val_loss.append(logs.get('val_loss'))
+        self.em_trk_none_netout_val_loss.append(logs.get('val_em_trk_none_netout_loss'))
+        self.michel_netout_val_loss.append(logs.get('val_michel_netout_loss'))
+
+        #acc
+        self.em_trk_none_netout_acc.append( logs.get('em_trk_none_netout_acc') )
+        self.michel_netout_acc.append( logs.get('michel_netout_acc') )
+
+        #val acc
+        self.em_trk_none_netout_val_acc.append( logs.get('val_em_trk_none_netout_acc') )
+        self.michel_netout_val_acc.append( logs.get('val_michel_netout_acc') )
+
+    def print_history( self ):
+        print self.loss
+        print self.em_trk_none_netout_loss
+        print self.michel_netout_loss
+        print self.val_loss
+        print self.em_trk_none_netout_val_loss
+        print self.michel_netout_val_loss
+
+        print self.em_trk_none_netout_acc
+        print self.michel_netout_acc
+        print self.em_trk_none_netout_val_acc
+        print self.michel_netout_val_acc
+
+    def save_history( self, outdir ):
+        np.save( outdir+'loss.npy' , self.loss )
+        np.save( outdir+'em_trk_none_netout_loss.npy' , self.em_trk_none_netout_loss )
+        np.save( outdir+'michel_netout_loss.npy' , self.michel_netout_loss )
+        np.save( outdir+'val_loss.npy' , self.val_loss )
+        np.save( outdir+'em_trk_none_netout_val_loss.npy' , self.em_trk_none_netout_val_loss )
+        np.save( outdir+'michel_netout_val_loss.npy' , self.michel_netout_val_loss )
+
+        np.save( outdir+'em_trk_none_netout_acc.npy' , self.em_trk_none_netout_acc)
+        np.save( outdir+'michel_netout_acc.npy' , self.michel_netout_acc )
+        np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
+        np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )
+
 
 #######################  model configuration  ##################################
 

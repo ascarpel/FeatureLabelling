@@ -44,15 +44,20 @@ do
 done
 
 # output
-export OutputFileLocal="db_view_${view}_${Number}.hdf5"
-export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/hdf5"
+export OutputFileLocal="db_view_${view}_${Number}.tar.gz"
+export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/images/tar"
 export OutputFileEOS=$OutputPathEOS"/"$OutputFileLocal
 mkdir -p $OutputPathEOS
 rm -f $OutputFileEOS
 
-# run script
-python /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/prepare_patches_em-trk-michel-none.py -i $InputFileLocal -o ./
-mv db_view_${view}.hdf5 db_view_${view}_${Number}.hdf5
+# run script:
+# make a fodler where to store all the .png images
+# compress the folder
+# copy compress folder to eos
+export ZipFolder="dbimages${view}"
+mkdir $ZipFolder
+python /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/prepare_patches_em-trk-michel-none.py -i $InputFileLocal -o $ZipFolder -v $view
+tar -zcvf $OutputFileLocal $ZipFolder
 
 # copying the npy output file to eos sometimes fails. Try max 100 times. Also, sometimes the file is on eos, but is empty (0 bytes) or has 731 bytes. In that case, copy again.
 CounterCopyToEOS=1
@@ -70,4 +75,4 @@ do
 done
 
 rm -f $InputFileLocal
-rm -f $OutputFileLocal
+rm -rf $ZipFolder
