@@ -168,6 +168,10 @@ def main():
     mysample = MakeSample( )
     mysample.make_list_from_folder( folder )
 
+    #check and remove previous links
+    mysample.remove_links( "./training/", "all" )
+    mysample.remove_links( "./testing/", "all" )
+
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
 
