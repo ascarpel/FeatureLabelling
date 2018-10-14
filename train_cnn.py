@@ -139,7 +139,7 @@ with tf.device('/gpu:' + args.gpu):
 ##########################  callbacks  #########################################
 
 tb = TensorBoard( log_dir=args.output+'/logs',
-                  histogram_freq=n_training,
+                  histogram_freq=0,
                   batch_size=batch_size,
                   write_graph=True,
                   write_images=True
@@ -192,36 +192,23 @@ def generate_data_generator(generator, folder, b):
 
     print folder
 
-    gen = generator.flow_from_directory(
-                                            directory=folder,
+    gen = generator.flow_from_directory(    directory=folder,
                                             target_size=(img_rows, img_cols),
                                             color_mode="grayscale",
                                             batch_size=b,
-                                            #classes = ['track', 'em', 'michel', 'none'],
                                             class_mode = 'binary',
                                             shuffle=True,
                                             seed=7,
-                                            follow_links = True
-                                        )
-    '''
-    make 2 sets of ntuples
-    #this is the folder order: michel  none  shower  track
-    #thus I assume that 0, 1, 2, 3 is the binary label assigned
-
-    don't understand exactly what flow_from_directory() returns.
-    It should be ntuples (input_array, labels_array), but I get that actually
-    both ntuples are written in the same way, the input_array elements are in the even index,
-    while the labels array are the odd indeces
-    '''
-
-    gen3class = ( gen[0], [ get_label_3class(num) for num in gen[1] ] )
-    gen1class = ( gen[0], [ get_label_1class(num) for num in gen[1] ] )
-
+                                            follow_links = True )
     while True:
-            #make the dictionary
-            g3class = gen3class.next()
-            g1class = gen1class.next()
-            yield {'main_input': g3class[0]}, {'em_trk_none_netout': g3class[1], 'michel_netout': g1class[1]}
+            #make the dictionary to pass as input to the fit_generator method
+            ntuple = gen.next()
+
+            #convert the batch labels array
+            em_trk_none = np.asarray([ get_label_3class(num) for num in ntuple[1] ])
+            michel_netout = np.asarray([ get_label_1class(num) for num in ntuple[1] ])
+
+            yield {'main_input': ntuple[0]}, {'em_trk_none_netout': em_trk_none, 'michel_netout': michel_netout}
 
 ##########################  training  ##########################################
 
