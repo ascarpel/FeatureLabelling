@@ -3,197 +3,206 @@
 ################################################################################
 #
 # Create the testing and training samples
-# Usage: pyton prepareset.py size_training files size_testing files first_file_num last_file_num False/True
+# Usage: pyton prepareset.py training_size testing_size validation_size
 #
 ################################################################################
-
 import os, sys
 import numpy as np
-import h5py
+import random
 
-def make_sample_array( training_size, testing_size, folder, bounds ):
+def untar_all( dir, target_dir ):
     """
-    return the list of files for the training and testing samples
+    Untar the images, rename them, cancel the tarball previously existing,
+    move patches into target_dir
     """
 
-    training = []
-    testing = []
-    sum = 0
+    import tarfile
 
-    previous_message=""
+    # Untar the files in forlder
+    tar_files = [ file for file in os.listdir( dir ) if '.tar.gz' in file ]
 
-    for file in os.listdir(folder):
+    for tar_file in tar_files:
 
-        this_message = 'Complete: %d %%' % int(float(sum)/float(training_size+testing_size)*100.)
-        if previous_message != this_message:
-            print this_message
-            previous_message = this_message
+        print "extracting file: %s" % tar_file
 
-        if sum <= training_size:
-            if copy_file( folder+file, "./training" , bounds ):
-                sum += 1
-        elif sum > training_size and sum < training_size+testing_size:
-            if copy_file( folder+file, "./testing" , bounds ):
-      	         sum += 1
+        #find view and filenum assuming filename db_view_*view_*num.tar.gz
+        tar_file_noext = tar_file.split('.')
+        spl_buffer = tar_file_noext[0].split('_')
+        index = spl_buffer.index('view')
+        num = spl_buffer[index+1]
+        view = spl_buffer[index+2]
+
+        #untar the file and remove tarball
+        tar = tarfile.open(dir+'/'+tar_file)
+        tar.extractall(path=dir)
+
+        # Erase tar folder
+        statement = 'rm %s/%s' % (dir, tar_file)
+        os.system(statement)
+
+        #change name to the untar patches
+        extracted_dir=dir+'/dbimages%s' % view
+        patches = [ file for file in os.listdir( extracted_dir ) if '.png' in file ]
+        for patch in patches:
+            print 'process patch:'+patch
+            name = patch.split('.')[0]
+            ext = patch.split('.')[-1]
+            final_patch_name = target_dir+'/'+name+'_'+num+'.'+ext
+            statement = 'mv %s/%s %s  ' % ( extracted_dir, patch, final_patch_name )
+            #print statement
+            os.system(statement)
+        statement = 'rm -R %s ' % extracted_dir
+        #print statement
+        os.system(statement)
+
+class MakeSample():
+
+    def __init__ ( self ):
+        #list containig all the files absolute address to use as input
+        self.fileslist = []
+        self.this_message = ""
+        self.previous_message = ""
+
+    def __print_message(self, prog, tot):
+        """
+        Print progression
+        """
+
+        self.this_message = 'Complete: %d %%' % int(float(prog)/float(tot)*100.)
+        if self.previous_message != self.this_message:
+            print self.this_message
+            self.previous_message = self.this_message
+
+    def __get_path(self, file ):
+        """
+        return the path/to/ of a file with strucutre path/to/db_view_*_x_num.npy
+        """
+        path = ""
+        for piece in file.split('/')[:-1]:
+            path += piece+"/"
+
+        return path
+
+    def __get_name(self, file ):
+        """
+        return the name of a file with strucutre path/to/db_view_*_num.hdf5
+        """
+
+        name = file.split('/')[-1]
+
+        return name
+
+    def __get_labes_from_name( self, name ):
+        """
+        Get the labels from the file name.
+        """
+
+        #extension
+        name = name.split('.')[0]
+
+        #get splut array
+        spl_buffer = name.split('_')
+
+        #find class names in spl_buffer
+        if 'track' in spl_buffer:
+            return 'track'
+        elif 'shower' in spl_buffer:
+            return 'shower'
+        elif 'michel' in spl_buffer:
+            return 'michel'
+        elif 'none' in spl_buffer:
+            return 'none'
         else:
-            print "All files copied!"
-            break
+            return 0
 
-    return
+    def make_list_from_folder( self, dirname ):
+        """
+        Fill the list with all the .png images stored in the given directory
+        """
 
-def get_num( file ):
-    """
-    return the num of a file with strucutre path/to/db_view_*_x_num.npy
-    """
+        self.fileslist = [ dirname+'/'+f for f in os.listdir(dirname) if '.png' in f ]
+        random.shuffle( self.fileslist )
 
-    num_and_ext = file.split('_')[-1]
-    num =  num_and_ext.split('.')[0]
+    def make_list_from_file( self, file ):
+        """
+        Fill the list starting from a .txt file
+        """
 
-    return num
+    def create_links(self, target_dir, sample_size ):
+        """
+        organize the database inside target_folder
+        """
 
-def get_path( file ):
-    """
-    return the path/to/ of a file with strucutre path/to/db_view_*_x_num.npy
-    """
-    path = ""
-    for piece in file.split('/')[:-1]:
-        path += piece+"/"
+        print 'Create links in folder: %s' % target_dir
 
-    return path
+        #remove the link previously existing:
+        self.remove_links( target_dir, 'all' )
 
-def get_name( file ):
-    """
-    return the name of a file with strucutre path/to/db_view_*_num.hdf5
-    """
+        num = sample_size
 
-    name = file.split('/')[-1]
+        if num > len( self.fileslist ):
+            num = len( self.fileslist )
+            print "resclaed input to: %d" % num
 
-    return name
+        while num >= 0:
 
-def get_view( file ):
+            self.__print_message( (sample_size-num), sample_size )
 
-    name = get_name(file)
-    view = name.split('_')[2]
+            fullname = self.fileslist[num]
+            name = self.__get_name(fullname) #isolate path
+            dirname = self.__get_labes_from_name(name)
 
-    return view
+            if dirname !=0:
+                #make a soft link in the given folder
+                statement = "ln -s %s %s" % (fullname, target_dir+'/'+dirname)
+                os.system(statement)
+            else:
+                print 'Invalid label in filename!'
+                print 'Options are: track, shower, michel, none'
 
-def copy_file( file, folder, bounds ):
-    """
-    link every file  file into the specified folder
-    """
+            self.fileslist.remove(fullname)
+            num -= 1
 
-    #check if the files are already on the list
-    if int(get_num(file)) <= bounds[0] or int(get_num(file)) > bounds[1]:
-        return False
-    else:
+    def remove_links(self, target_dir, option ):
+        """
+        Remove dangling links
+        """
 
-        statement = "ln -s %s %s" % (file, folder)
-        os.system(statement)
+        listdir = [ dir for dir in os.listdir(target_dir)  ]
 
-        return True
+        for dir in listdir:
 
+            print 'check for links in folder: ' + target_dir+dir
 
-#def checklength( dirname, remove ):
-#    """
-#   """
-#
-#    f_x = [f for f in os.listdir(dirname) if '_x_' in f]
-#    f_y = [f for f in os.listdir(dirname) if '_y_' in f]
-#
-#    print " in folder %s: %i _x and %i _y " % ( dirname, len(f_x), len(f_y) )
-#
-#    if len( f_x ) == len( f_y ):
-#        print "all ok!"
-#        return
-#    elif len(f_x) > len(f_y):
-#        longest = f_x
-#        shortest = f_y
-#        arg = '_y_'
-#    else:
-#        longest = f_y
-#        shortest = f_x
-#        arg = '_x_'
-#
-#    for file in longest:
-#        num =  get_num(file)
-#        matches = [x for x in shortest if x.endswith(arg+num+'.npy') ]
-#        if len(matches) == 0:
-#            statement = 'rm '+dirname+file
-#            print ' Extra file: '+file
-#
-#            #remove the files if flag correctly set
-#            if remove == 'Yes':
-#                print statement
-#                os.system(statement)
+            for file in os.listdir(target_dir+dir):
 
+                statement = "rm -f %s" % (target_dir+dir+'/'+file)
 
-def remove_links( folder ):
-    """
-    Remove dangling links
-    """
-
-    statement = "rm -f %s" % (folder)
-
-    if not os.path.islink(folder):
-        os.system(statement)
-
-    return
-
-def make_array_list(folder):
-    '''
-    Create a numpy array holding ( file number, array idex ) ntuples to identify
-    each patch in the database with an unique address
-    '''
-
-    address_list = [] #np.empty(1, dtype=int)
-
-    files = [ f for f in os.listdir(folder) if '.hdf5' in f ]
-
-    for file in files:
-
-        print 'reading '+file
-
-        view = get_view(file)
-        num = get_num(file)
-
-        try:
-            db = h5py.File( folder+file , 'r')
-            labels =  db.get('labels')
-        except:
-            print "can't open file"
-            continue
-
-        for key in labels.keys():
-            id =  int( key.split('_')[-1] )
-
-            address_list.append( (view, num, id) )
-
-        db.close()
-
-    np.save(folder+"/address_list.npy", address_list)
-
-    return
+                if option=='invalid':
+                    if not os.path.islink( target_dir+dir+'/'+file ):
+                        os.system(statement)
+                if option=='all':
+                        os.system(statement)
 
 def main():
 
-    folder="/eos/user/a/ascarpel/CNN/neutrino/hdf5/"
-    inputdir=""
+    folder="/eos/user/a/ascarpel/CNN/neutrino/images/"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
-    first_file =  int(sys.argv[3])
-    last_file = int(sys.argv[4])
-    makelist = sys.argv[5]
 
-    make_sample_array( training_size, testing_size, folder+inputdir, (first_file, last_file) )
+    mysample = MakeSample()
+    mysample.make_list_from_folder( folder )
 
-    #remove dangling symlinks
-    remove_links( "./training/" )
-    remove_links( "./testing/"  )
+    #check and remove previous links
+    mysample.remove_links( "./training/", "all" )
+    mysample.remove_links( "./testing/", "all" )
 
-    #make input lists
-    if makelist:
-        make_array_list( "./training/" )
-        make_array_list( "./testing/" )
+    mysample.create_links( "./training/", training_size )
+    mysample.create_links( "./testing/", testing_size )
+
+    #check and remove invalid links
+    mysample.remove_links( "./training/", "invalid" )
+    mysample.remove_links( "./testing/", "invalid" )
 
     print "All done"
 

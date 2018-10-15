@@ -22,9 +22,10 @@
 
   "training_on_patches" : {
     "input_dir": "dataset/",
-
+    "n_training": 6000,
+    "n_testing":  3000,
     "batch_size": 256,
     "nb_classes": 4,
-    "nb_epoch": 30
+    "nb_epoch"  : 2
   }
 }

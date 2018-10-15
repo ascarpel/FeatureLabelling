@@ -132,6 +132,8 @@ img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 batch_size = config['training_on_patches']['batch_size']
 nb_classes = config['training_on_patches']['nb_classes']
 nb_epoch = config['training_on_patches']['nb_epoch']
+n_training = config["training_on_patches"]["n_training"]
+n_testing = config["training_on_patches"]["n_testing"]
 
 nb_pool = 2 # size of pooling area for max pooling
 
@@ -210,7 +212,7 @@ with tf.device('/gpu:' + args.gpu):
 ##########################  callbacks  #########################################
 
 tb = TensorBoard( log_dir=args.output+'/logs',
-                  histogram_freq=X_train.shape[0],
+                  histogram_freq=0,
                   batch_size=batch_size,
                   write_graph=True,
                   write_images=True
@@ -219,141 +221,85 @@ history = RecordHistory()
 
 ##########################  generator  #########################################
 
-#datagen = ImageDataGenerator(
-#                featurewise_center=False, samplewise_center=False,
-#                featurewise_std_normalization=False,
-#                samplewise_std_normalization=False,
-#                zca_whitening=False,
-#                rotation_range=0, width_shift_range=0, height_shift_range=0,
-#                horizontal_flip=True, # randomly flip images
-#                vertical_flip=False)  # only horizontal flip
-#datagen.fit(X_train)
+train_gen = ImageDataGenerator(
+                rescale=1./255,
+                featurewise_center=False, samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=False,
+                rotation_range=0, width_shift_range=0, height_shift_range=0,
+                horizontal_flip=True, # randomly flip images
+                vertical_flip=False )  # only horizontal flip
 
-# Implement DataGenerator class inheriting the Sequence object
+test_gen = ImageDataGenerator( rescale=1./255 )
 
-class DataGenerator( keras.utils.Sequence ):
+def get_label_3class( num ):
     """
-    Description here
+    return a 3 class array with the binary classification of the image
+    """
+    if num == 3:
+        return [1, 0, 0] #track
+    elif num == 0 or num==2:
+        return [0, 1, 0] #em
+    elif num == 1:
+        return [0, 0, 1] #none
+    else:
+        print "get_label_3class: Invalid class option"
+
+def get_label_1class( num ):
+    """
+    reurn 1 class array with binary classification of the image
+    """
+    if num == 0:
+        return [1] #michel
+    elif num == 1 or num == 2 or num == 3 :
+        return [0] #nomichel
+    else:
+        print "get_label_1class: Invalid class option"
+
+def generate_data_generator(generator, folder, b):
+    """
+    Input generator to the model. Read images from folders, prepare the batch
+    and make the output labels in the correct format
     """
 
-    def __init__( self, list_IDs, batch_size, dim ,path, dirname):
-        """ Class initialization """
+    print folder
 
-        self.batch_size = batch_size
-        self.list_IDs = list_IDs # holds address ntuples equal for both x and y
-        self.list_IDs_temp = [] # holds temps address ntuples equal for both x and y
-        self.dim = dim # ntuples with the patch dimension from config file
-        self.path = path #initial directory
-        self.dirname = dirname    #training or testing
+    gen = generator.flow_from_directory(    directory=folder,
+                                            target_size=(img_rows, img_cols),
+                                            color_mode="grayscale",
+                                            batch_size=b,
+                                            class_mode = 'binary',
+                                            shuffle=True,
+                                            seed=7,
+                                            follow_links = True )
+    while True:
+            #make the dictionary to pass as input to the fit_generator method
+            ntuple = gen.next()
 
-        self.on_epoch_end()
+            #convert the batch labels array
+            em_trk_none = np.asarray([ get_label_3class(num) for num in ntuple[1] ])
+            michel_netout = np.asarray([ get_label_1class(num) for num in ntuple[1] ])
 
-    def __len__( self ):
-        """ Denotes the number of batches per epoch (mandatory) """
-
-        return int(np.floor(len(self.list_IDs) / self.batch_size))
-
-    def __getitem__( self, index ):
-        """ Generate one batch of data ( mandatory ) """
-
-        X, Y = self.__data_generation()
-
-        return X, Y
-
-    def on_epoch_end( self ):
-        """ Update indeces after each epoch """
-
-        #regenerate the index list
-        self.list_IDs_temp = self.list_IDs
-
-    def __get_random( self ):
-         """
-         Get a random address from the list,
-         remove that entry so one will use it only once per epoch
-         return filenum and array index
-         """
-
-         #get a random number
-         index = np.random.randint(0, len(self.list_IDs_temp), 1)
-
-         address = self.list_IDs_temp[index]
-         np.delete( self.list_IDs_temp, index )
-
-         view = int(address[0][0])
-         num = int(address[0][1])
-         id = int(address[0][2])
-
-         return view, num, id
-
-    def __data_generation( self ):
-        """ Generates data containing batch_size samples """
-
-        #Input array
-        X = np.zeros( ( self.batch_size, self.dim[0], self.dim[1], 1) , dtype=np.float32)
-
-        #Output arrays (NB: dimensions are hardcoded because part of the model )
-        EmTrkNone = np.zeros((self.batch_size, 3), dtype=np.int32)
-        Michel = np.zeros((self.batch_size, 1), dtype=np.int32)
-
-        for i in range( 0, self.batch_size ):
-
-            #get random numbers and read all the files associated to it
-            view, num, id = self.__get_random()
-
-            fname = "db_view_%d_%d.hdf5" % (view, num)
-
-            db = h5py.File( self.path+'/'+self.dirname+'/'+fname , 'r')
-            input_dataset_name = 'data/data_%d' % id
-            label_dataset_name = 'labels/label_%d' % id
-
-            #inport input data
-            dataX = db.get( input_dataset_name )
-            X[i] = np.asarray( dataX ).reshape( self.dim[0], self.dim[1], 1 )
-
-            #inport output label
-            dataY = db.get( label_dataset_name )
-            EmTrkNone[i] = [dataY[0], dataY[1], dataY[3]]
-            Michel[i] = [dataY[2]]
-
-            db.close()
-
-            #TODO: data augmentation?
-
-        return {'main_input': X}, {'em_trk_none_netout': EmTrkNone, 'michel_netout': Michel}
+            yield {'main_input': ntuple[0]}, {'em_trk_none_netout': em_trk_none, 'michel_netout': michel_netout}
 
 ##########################  training  ##########################################
 
-#training generator
-training_address = np.load( CNN_INPUT_DIR+'/training/address_list.npy'  )
-n_train = len( training_address )
+if n_training/batch_size == 0:
+    print "training steps not configured! "
+elif n_testing/batch_size == 0:
+    print "testing steps not configured! "
 
-training_generator = DataGenerator( training_address,
-                                    batch_size,
-                                    ( PATCH_SIZE_W, PATCH_SIZE_D ),
-                                    CNN_INPUT_DIR,
-                                    'training'
-                                   )
-
-#testing generator
-testing_address = np.load( CNN_INPUT_DIR+'/testing/address_list.npy' )
-n_train = len( training_address )
-
-validation_generator = DataGenerator( testing_address,
-                                      batch_size,
-                                      ( PATCH_SIZE_W, PATCH_SIZE_D ),
-                                      CNN_INPUT_DIR,
-                                      'testing'
-                                    )
 
 print 'Fit config:', cfg_name
 model.fit_generator(
-                     generator=training_generator,
-                     validation_data=validation_generator,
-                     steps_per_epoch=n_train/batch_size, epochs=nb_epoch,
+                     generator=generate_data_generator(train_gen, './dataset/training/', batch_size  ),
+                     validation_data=generate_data_generator(test_gen, './dataset/testing/', batch_size  ),
+                     steps_per_epoch=n_training/batch_size,
+                     validation_steps=n_testing/batch_size,
+                     epochs=nb_epoch,
                      verbose=1,
                      callbacks=[tb, history],
-                     use_multiprocessing=True,
-                     workers=2
                     )
 
 ################################################################################

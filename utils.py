@@ -1,6 +1,6 @@
 from ROOT import TFile
 from root_numpy import hist2array
-import h5py
+from PIL import Image
 
 import numpy as np
 from os import listdir
@@ -20,10 +20,9 @@ def count_events(folder, key):
 
 def get_patch_size(folder):
     dlist = [f for f in listdir(folder) if 'training' in f]
-    flist = [f for f in listdir(folder + '/' + dlist[0]) if '.hdf5' in f]
-    db= h5py.File( folder+'/'+dlist[0]+'/'+flist[0] , 'r')
-    d = db.get( 'data/data_0' )
-    #db.close()
+    flist = [f for f in listdir(folder + '/' + dlist[0] + '/track/') if '.png' in f]
+    img = Image.open(folder+'/'+dlist[0]+'/track/'+flist[0])
+    d = np.array( img )
 
     return d.shape[0], d.shape[1]
 
