@@ -41,7 +41,7 @@ done
 
 # output
 export OutputFileLocal="db_view_${view}_${Number}.tar.gz"
-export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/images/tar"
+export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/images/"
 export OutputFileEOS=$OutputPathEOS"/"$OutputFileLocal
 mkdir -p $OutputPathEOS
 rm -f $OutputFileEOS
@@ -50,7 +50,7 @@ rm -f $OutputFileEOS
 # make a fodler where to store all the .png images
 # compress the folder
 # copy compress folder to eos
-export ZipFolder="dbimages${view}"
+export ZipFolder="dbimages${view}_${Number}"
 mkdir $ZipFolder
 python /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/prepare_patches_em-trk-michel-none.py -i $InputFileLocal -o $ZipFolder -v $view
 tar -zcvf $OutputFileLocal $ZipFolder
@@ -61,14 +61,20 @@ while ( [ ! -f $OutputFileEOS ] || [ $(stat -c%s "$OutputFileEOS") != $(stat -c%
 do
   echo "Copying text output file to EOS, attempt #$CounterCopyToEOS"
   cp $OutputFileLocal $OutputPathEOS
-  echo ".npy file size on EOS: "$(stat -c%s "$OutputFileLocal")
+  echo "File size on EOS: "$(stat -c%s "$OutputFileLocal")
   let CounterCopyToEOS=CounterCopyToEOS+1
 
   if [ $(stat -c%s "$OutputFileEOS") != $(stat -c%s "$OutputFileLocal") ]
   then
     rm -f $OutputFileEOS
   fi
+
+  # Untar file on eos
+  tar -xvf $OutputFileEOS -C $OutputPathEOS
+  rm $OutputFileEOS
+
 done
 
 rm -f $InputFileLocal
 rm -rf $ZipFolder
+rm -f $OutputFileLocal
