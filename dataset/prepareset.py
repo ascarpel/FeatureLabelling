@@ -3,32 +3,57 @@
 ################################################################################
 #
 # Create the testing and training samples
-# Usage: pyton prepareset.py
+# Usage: pyton prepareset.py training_size testing_size validation_size
 #
 ################################################################################
 import os, sys
 import numpy as np
 import random
 
-def untar_all( folder ):
+def untar_all( dir, target_dir ):
     """
-    Untar all the files in folder
-    """
-
-    # Write here how to untar the files
-    # Modify the names of the untar files so they will feature the tar filename
-    # Erase tar folder
-
-def make_files_list( folder ):
-    """
-    Make a .txt file with the absolute path of the patches
-    required for the training, testing and validation
+    Untar the images, rename them, cancel the tarball previously existing,
+    move patches into target_dir
     """
 
-    # Read the patches names form their location
-    # Apply some sorting criteria of selection ( eg. shuffle, or select a limited
-    # number of file for each class
-    # Save selected patches absolute paths in .txt file
+    import tarfile
+
+    # Untar the files in forlder
+    tar_files = [ file for file in os.listdir( dir ) if '.tar.gz' in file ]
+
+    for tar_file in tar_files:
+
+        print "extracting file: %s" % tar_file
+
+        #find view and filenum assuming filename db_view_*view_*num.tar.gz
+        tar_file_noext = tar_file.split('.')
+        spl_buffer = tar_file_noext[0].split('_')
+        index = spl_buffer.index('view')
+        num = spl_buffer[index+1]
+        view = spl_buffer[index+2]
+
+        #untar the file and remove tarball
+        tar = tarfile.open(dir+'/'+tar_file)
+        tar.extractall(path=dir)
+
+        # Erase tar folder
+        statement = 'rm %s/%s' % (dir, tar_file)
+        os.system(statement)
+
+        #change name to the untar patches
+        extracted_dir=dir+'/dbimages%s' % view
+        patches = [ file for file in os.listdir( extracted_dir ) if '.png' in file ]
+        for patch in patches:
+            print 'process patch:'+patch
+            name = patch.split('.')[0]
+            ext = patch.split('.')[-1]
+            final_patch_name = target_dir+'/'+name+'_'+num+'.'+ext
+            statement = 'mv %s/%s %s  ' % ( extracted_dir, patch, final_patch_name )
+            #print statement
+            os.system(statement)
+        statement = 'rm -R %s ' % extracted_dir
+        #print statement
+        os.system(statement)
 
 class MakeSample():
 
@@ -165,7 +190,7 @@ def main():
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
 
-    mysample = MakeSample( )
+    mysample = MakeSample()
     mysample.make_list_from_folder( folder )
 
     #check and remove previous links
