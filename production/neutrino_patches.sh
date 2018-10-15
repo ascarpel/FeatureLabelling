@@ -1,11 +1,7 @@
 #!/bin/bash
 
-#scl enable python27 bash
-#source /afs/cern.ch/sw/lcg/external/gcc/4.9/x86_64-slc6-gcc49-opt/setup.sh
-#source /afs/cern.ch/sw/lcg/app/releases/ROOT/6.06.06/x86_64-slc6-gcc49-opt/root/bin/thisroot.sh
-
 # choose view
-view=1
+view=0
 
 # get input
 export InputFileEOS=$1

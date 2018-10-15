@@ -4,8 +4,8 @@
 notify_user             = andrea.scarpelli@cern.ch
 notification            = Error
 universe       		      = vanilla
-executable     		      = /afs/cern.ch/work/a/ascarpel/private/GridSub/neutrino_patches.sh
-JOBNAME                 = neutrino_patches_view_1
+executable     		      = neutrino_patches.sh
+JOBNAME                 = neutrino_patches_view_0
 output  		            = mess/$(JOBNAME).$(ClusterId).$(ProcId).out
 error   		            = mess/$(JOBNAME).$(ClusterId).$(ProcId).error
 log 			              = mess/$(JOBNAME).$(ClusterId).$(ProcId).log
@@ -14,12 +14,12 @@ getenv 			            = True
 ## Force HTCondor not to use shared filesystem
 should_transfer_files 	= YES
 when_to_transfer_output = ON_EXIT
-initialdir 		          = /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/
+initialdir 		          = /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/production/
 #transfer_input_files 	=
 requirements            = (Arch == "INTEL" && OpSys == "LINUX") || (Arch == "X86_64" && OpSys =="LINUX" )
 priority 		            = 20
 #request_disk           = 300
 #request_memory         = 300
-+JobFlavour             = "microcentury"
++JobFlavour             = "longlunch"
 #+MaxRuntime = 1200
-queue arguments from list_neutrino.txt
+queue arguments from neutrino_list.txt
