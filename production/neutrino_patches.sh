@@ -3,6 +3,9 @@
 # choose view
 view=0
 
+#env. variable for eos
+EOS_MGM_URL=root://eospublic.cern.ch
+
 # get input
 export InputFileEOS=$1
 
@@ -41,7 +44,7 @@ done
 
 # output
 export OutputFileLocal="db_view_${view}_${Number}.tar.gz"
-export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/images/"
+export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/"
 export OutputFileEOS=$OutputPathEOS"/"$OutputFileLocal
 mkdir -p $OutputPathEOS
 rm -f $OutputFileEOS
@@ -70,10 +73,13 @@ do
   fi
 
   # Untar file on eos
-  tar -xvf $OutputFileEOS -C $OutputPathEOS
-  rm $OutputFileEOS
+  #tar -xvf $OutputFileEOS -C $OutputPathEOS
+  #rm $OutputFileEOS
 
 done
+
+tar -xvf $OutputFileEOS -C $OutputPathEOS
+rm $OutputFileEOS
 
 rm -f $InputFileLocal
 rm -rf $ZipFolder

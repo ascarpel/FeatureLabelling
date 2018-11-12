@@ -64,7 +64,7 @@ def main(argv):
 
     ##### make patches #########################################################
 
-    max_capacity = 10000
+    max_capacity = 150
 
     patch_area = PATCH_SIZE_W * PATCH_SIZE_D
 
