@@ -5,6 +5,8 @@ parser.add_argument('-o', '--output', help="Output model file name", default='mo
 parser.add_argument('-g', '--gpu', help="Which GPU index", default='0')
 args = parser.parse_args()
 
+#################### module import and initialization  #########################
+
 import os
 os.environ['KERAS_BACKEND'] = "tensorflow"
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -46,6 +48,17 @@ def save_model(model, name):
     except:
         return False  # Save failed
 
+def sample_len( dir ):
+    """
+    Return the total number of files composing the sample in dir
+    """
+    num = 0
+    listsubdir = [ subdir for subdir in os.listdir(dir)  ]
+    for subdir in listsubdir:
+        num += len( os.listdir(dir+subdir) )
+
+    return num
+
 #######################  model configuration  ##################################
 
 print 'Reading configuration...'
@@ -59,8 +72,11 @@ img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 batch_size = config['training_on_patches']['batch_size']
 nb_classes = config['training_on_patches']['nb_classes']
 nb_epoch = config['training_on_patches']['nb_epoch']
-n_training = config["training_on_patches"]["n_training"]
-n_testing = config["training_on_patches"]["n_testing"]
+n_training = sample_len( "/data/ascarpel/FeatureLabelling/dataset/training/" )
+n_testing = sample_len( "/data/ascarpel/FeatureLabelling/dataset/testing/" )
+
+print " Training sample size: %d " % n_training
+print " Testing sample size: %d " % n_testing
 
 nb_pool = 2 # size of pooling area for max pooling
 
@@ -134,7 +150,6 @@ with tf.device('/gpu:' + args.gpu):
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
                   metrics=['accuracy']
                   )
-
 
 ##########################  callbacks  #########################################
 
@@ -216,7 +231,6 @@ if n_training/batch_size == 0:
     print "training steps not configured! "
 elif n_testing/batch_size == 0:
     print "testing steps not configured! "
-
 
 print 'Fit config:', cfg_name
 model.fit_generator(

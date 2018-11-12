@@ -2,58 +2,14 @@
 
 ################################################################################
 #
-# Create the testing and training samples
+# Create the testing, training and validation samples
 # Usage: pyton prepareset.py training_size testing_size validation_size
 #
 ################################################################################
+
 import os, sys
 import numpy as np
 import random
-
-def untar_all( dir, target_dir ):
-    """
-    Untar the images, rename them, cancel the tarball previously existing,
-    move patches into target_dir
-    """
-
-    import tarfile
-
-    # Untar the files in forlder
-    tar_files = [ file for file in os.listdir( dir ) if '.tar.gz' in file ]
-
-    for tar_file in tar_files:
-
-        print "extracting file: %s" % tar_file
-
-        #find view and filenum assuming filename db_view_*view_*num.tar.gz
-        tar_file_noext = tar_file.split('.')
-        spl_buffer = tar_file_noext[0].split('_')
-        index = spl_buffer.index('view')
-        num = spl_buffer[index+1]
-        view = spl_buffer[index+2]
-
-        #untar the file and remove tarball
-        tar = tarfile.open(dir+'/'+tar_file)
-        tar.extractall(path=dir)
-
-        # Erase tar folder
-        statement = 'rm %s/%s' % (dir, tar_file)
-        os.system(statement)
-
-        #change name to the untar patches
-        extracted_dir=dir+'/dbimages%s' % view
-        patches = [ file for file in os.listdir( extracted_dir ) if '.png' in file ]
-        for patch in patches:
-            print 'process patch:'+patch
-            name = patch.split('.')[0]
-            ext = patch.split('.')[-1]
-            final_patch_name = target_dir+'/'+name+'_'+num+'.'+ext
-            statement = 'mv %s/%s %s  ' % ( extracted_dir, patch, final_patch_name )
-            #print statement
-            os.system(statement)
-        statement = 'rm -R %s ' % extracted_dir
-        #print statement
-        os.system(statement)
 
 class MakeSample():
 
@@ -117,16 +73,50 @@ class MakeSample():
 
     def make_list_from_folder( self, dirname ):
         """
-        Fill the list with all the .png images stored in the given directory
+        Fill the dirlist with all the .png images stored in the given directory
         """
 
-        self.fileslist = [ dirname+'/'+f for f in os.listdir(dirname) if '.png' in f ]
+        #loop over folders
+        dirlist = [ dirname+'/'+dir for dir in os.listdir(dirname) if '.tar.gz' not in dir ]
+
+        #put all the files into a single list
+        for dir in dirlist:
+            print dir
+            self.fileslist = self.fileslist + [ dirname+'/'+f for f in os.listdir(dirname) if '.png' in f ]
+
+        #reshuffle the list
         random.shuffle( self.fileslist )
+
+    def __print_num_of_classes( self ):
+        """
+        Print the total number of files processed and how many files per class are present
+        """
+
+        tracks = [ file for file in self.fileslist if '_track_' in file ]
+        shower = [ file for file in self.fileslist if '_shower_' in file ]
+        none   = [ file for file in self.fileslist if '_none_' in file ]
+        michel = [ file for file in self.fileslist if '_michel_' in file ]
+
+        print " All files: %d " % len( self.fileslist )
+        print " Tracks:    %d " % len( tracks )
+        print " Showers:   %d " % len( shower )
+        print " Michel:    %d " % len( michel )
+        print " None:      %d " % len( none )
 
     def make_list_from_file( self, file ):
         """
-        Fill the list starting from a .txt file
+        Fill dirlist with all the absolute paths in file
         """
+
+        files = open(file, 'r')
+        self.fileslist = [ file.split('\n')[0] for file in files if '.png' in file ]
+
+        #randomize the order
+        random.shuffle( self.fileslist )
+
+        #print how many fiels per classes from the list
+        self.__print_num_of_classes()
+
 
     def create_links(self, target_dir, sample_size ):
         """
@@ -143,6 +133,10 @@ class MakeSample():
         if num > len( self.fileslist ):
             num = len( self.fileslist )
             print "resclaed input to: %d" % num
+
+        if num==0:
+            print "No files for class in folder %s" % target_dir
+            return
 
         while num >= 0:
 
@@ -186,23 +180,23 @@ class MakeSample():
 
 def main():
 
-    folder="/eos/user/a/ascarpel/CNN/neutrino/images/"
+    filelist="/eos/user/a/ascarpel/CNN/neutrino/files.list"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
+    validation_size = int(sys.argv[3])
 
     mysample = MakeSample()
-    mysample.make_list_from_folder( folder )
+    mysample.make_list_from_file( filelist )
 
-    #check and remove previous links
-    mysample.remove_links( "./training/", "all" )
-    mysample.remove_links( "./testing/", "all" )
-
+    #previously created links are automatically removed
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
+    mysample.create_links( "./validation/", validation_size )
 
     #check and remove invalid links
     mysample.remove_links( "./training/", "invalid" )
     mysample.remove_links( "./testing/", "invalid" )
+    mysample.remove_links( "./validation/", "invalid" )
 
     print "All done"
 
