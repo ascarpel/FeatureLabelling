@@ -66,7 +66,8 @@ config = read_config(args.config)
 
 CNN_INPUT_DIR = config['training_on_patches']['input_dir']
 # input image dimensions
-PATCH_SIZE_W, PATCH_SIZE_D = get_patch_size(CNN_INPUT_DIR)
+PATCH_SIZE_W = config['prepare_data_em_track']['patch_size_w']
+PATCH_SIZE_D = config['prepare_data_em_track']['patch_size_d']
 img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 
 batch_size = config['training_on_patches']['batch_size']

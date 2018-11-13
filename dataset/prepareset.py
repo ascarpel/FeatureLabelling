@@ -48,6 +48,15 @@ class MakeSample():
 
         return name
 
+    def __get_extension(self, file ):
+        """
+        Return the name of a file with strucutre path/to/db_view_*_num.hdf5
+        """
+
+        extension = file.split('.')[-1]
+
+        return extension
+
     def __get_labes_from_name( self, name ):
         """
         Get the labels from the file name.
@@ -128,10 +137,11 @@ class MakeSample():
         #remove the link previously existing:
         self.remove_links( target_dir, 'all' )
 
+        index = 0
         num = sample_size
 
         if num > len( self.fileslist ):
-            num = len( self.fileslist )
+            num = len( self.fileslist )-1
             print "resclaed input to: %d" % num
 
         if num==0:
@@ -143,18 +153,24 @@ class MakeSample():
             self.__print_message( (sample_size-num), sample_size )
 
             fullname = self.fileslist[num]
-            name = self.__get_name(fullname) #isolate path
+            name = self.__get_name( fullname ) #isolate path
             dirname = self.__get_labes_from_name(name)
+            extension = self.__get_extension(name)
+
+            #append num at the end as unique index for each file
+            newname = name.split('.')[0]+"_"+str(index)+"."+extension
 
             if dirname !=0:
                 #make a soft link in the given folder
-                statement = "ln -s %s %s" % (fullname, target_dir+'/'+dirname)
+                statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
+                #print statement
                 os.system(statement)
             else:
                 print 'Invalid label in filename!'
                 print 'Options are: track, shower, michel, none'
 
             self.fileslist.remove(fullname)
+            index += 1
             num -= 1
 
     def remove_links(self, target_dir, option ):
@@ -173,7 +189,8 @@ class MakeSample():
                 statement = "rm -f %s" % (target_dir+dir+'/'+file)
 
                 if option=='invalid':
-                    if not os.path.islink( target_dir+dir+'/'+file ):
+                    if not os.path.exists(os.readlink(target_dir+dir+'/'+file )):
+                        print "file: %s doesn't exist" % file
                         os.system(statement)
                 if option=='all':
                         os.system(statement)
@@ -188,6 +205,11 @@ def main():
     mysample = MakeSample()
     mysample.make_list_from_file( filelist )
 
+    #check and remove invalid links
+    mysample.remove_links( "./training/", "all" )
+    mysample.remove_links( "./testing/", "all" )
+    mysample.remove_links( "./validation/", "all" )
+
     #previously created links are automatically removed
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
@@ -199,7 +221,6 @@ def main():
     mysample.remove_links( "./validation/", "invalid" )
 
     print "All done"
-
 
 if __name__ == "__main__":
     main()
