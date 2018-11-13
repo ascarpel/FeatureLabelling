@@ -309,7 +309,7 @@ elif n_testing/batch_size == 0:
 
 print 'Fit config:', cfg_name
 model.fit_generator(
-                     generator=generate_data_generator(train_gen, './dataset/training/', batch_size  ),
+                     generator=generate_data_generator(train_gen, '/training/training', batch_size  ),
                      validation_data=generate_data_generator(test_gen, './dataset/testing/', batch_size  ),
                      steps_per_epoch=n_training/batch_size,
                      validation_steps=n_testing/batch_size,

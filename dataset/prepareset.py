@@ -208,17 +208,17 @@ def main():
     #check and remove invalid links
     mysample.remove_links( "./training/", "all" )
     mysample.remove_links( "./testing/", "all" )
-    mysample.remove_links( "./validation/", "all" )
+    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "all" )
 
     #previously created links are automatically removed
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
-    mysample.create_links( "./validation/", validation_size )
+    mysample.create_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", validation_size )
 
     #check and remove invalid links
     mysample.remove_links( "./training/", "invalid" )
     mysample.remove_links( "./testing/", "invalid" )
-    mysample.remove_links( "./validation/", "invalid" )
+    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "invalid" )
 
     print "All done"
 
