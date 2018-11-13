@@ -7,7 +7,14 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 import argparse
-import h5py
+from scipy.misc import toimage
+#from PIL import Image
+
+#import matplotlib
+import matplotlib
+matplotlib.use('Agg')   # generate postscript output by default
+
+import matplotlib.pyplot as plt
 
 from utils import get_data, get_patch
 
@@ -18,6 +25,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Makes training data set for EM vs track separation')
     parser.add_argument('-i', '--input', help="Input directory")
     parser.add_argument('-o', '--output', help="Output directory")
+    parser.add_argument('-v', '--view', help="View to process")
     args = parser.parse_args()
 
     #config = read_config(args.config)
@@ -37,7 +45,7 @@ def main(argv):
     print '#'*50
 
     doing_nue = False #config['prepare_data_em_track']['doing_nue']                       # set to true for nu_e events (will skip more showers)
-    selected_view_idx = 1 #config['prepare_data_em_track']['selected_view_idx']       # set the view id
+    selected_view_idx =  int(args.view) #config['prepare_data_em_track']['selected_view_idx']       # set the view id
     patch_fraction = 30.0 # config['prepare_data_em_track']['patch_fraction']             # percent of used patches
     empty_fraction = 0.1 #config['prepare_data_em_track']['empty_fraction']             # percent of "empty background" patches
     clean_track_fraction = 20.0 #config['prepare_data_em_track']['clean_track_fraction'] # percent of selected patches, where only a clean track is present
@@ -54,18 +62,9 @@ def main(argv):
 
     print 'Blur kernel', blur_kernel, 'noise RMS', white_noise
 
-    ##### define db ############################################################
-
-    #database:
-        #group 1: data
-            #1 dataset per patch ( upper size max_capacity )
-        #group 2: labels
-            #1 dataset per label ( upper size max_capacity )
+    ##### make patches #########################################################
 
     max_capacity = 10000
-    db = h5py.File(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'.hdf5', "w")
-    grp_data = db.create_group("data")
-    grp_labels = db.create_group("labels")
 
     patch_area = PATCH_SIZE_W * PATCH_SIZE_D
 
@@ -74,6 +73,8 @@ def main(argv):
     cnt_sh = 0
     cnt_michel = 0
     cnt_void = 0
+
+    max_capacity_reached = False
 
     fcount = 0
 
@@ -87,10 +88,18 @@ def main(argv):
     event_list.append((rootFile, keys))
 
     for entry in event_list:
+
+        if max_capacity_reached:
+            break
+
         folder = entry[0]
         event_names = entry[1]
 
         for evname in event_names:
+
+            if max_capacity_reached:
+                break
+
             finfo = evname.split('_')
             evt_no = finfo[2]
             tpc_idx = int(finfo[8])
@@ -121,7 +130,15 @@ def main(argv):
             sel_clean_trk = 0
             sel_near_nu = 0
             for i in range(raw.shape[0]):
+
+                if max_capacity_reached:
+                    break
+
                 for j in range(raw.shape[1]):
+
+                    if max_capacity_reached:
+                        break
+
                     is_raw_zero = (raw[i,j] < 0.01)
                     is_michel = (pdg[i,j] & 0xF000 == 0x2000) # has michel flag set, wont skip it
                     is_muon = (pdg[i,j] & 0xFFF == 13)
@@ -210,30 +227,35 @@ def main(argv):
 
                     if cnt_ind < max_capacity:
 
-                         db_x = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
-                         db_y= target
+                        db_x = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
 
-                         dataset_name_x = 'data_%s' % cnt_ind
-                         dataset_name_y = 'label_%s' % cnt_ind
+                        #get the human readable label
+                        if target[0] == 1:
+                             label = "track"
+                        elif target[1] == 1:
+                             label = "shower"
+                        elif target[2] == 1:
+                             label = "michel"
+                        elif target[3] == 1:
+                             label = "none"
+                        else:
+                             print "Should never happen"
 
-                         #save output to datasets
-                         grp_data.create_dataset( dataset_name_x , data=db_x )
-                         grp_labels.create_dataset( dataset_name_y , data=db_y )
+                        #save the image in .
+                        imagename = "%s/db_%s_view_%d_%d.png" % ( OUTPUT_DIR, label, selected_view_idx, cnt_ind )
+                        #Image.fromarray( db_x ).save( imagename)
+                        toimage( db_x, mode='I' ).save( imagename )
+                        #np.save( imagename.split('.')[0]+'.npy', db_x )
 
-                         #flush buffer to memory
-                         db.flush()
-
-                         cnt_ind += 1
+                        cnt_ind += 1
                     else:
+                        max_capacity_reached = True
                         print 'MAX CAPACITY REACHED!!!'
                         break
 
             print 'Selected: tracks', sel_trk, 'showers', sel_sh, 'empty', sel_empty, '/// muons', sel_muon, 'michel', sel_michel, 'clean trk', sel_clean_trk, 'near nu', sel_near_nu
 
     print 'Added', cnt_ind, 'tracks:', cnt_trk, 'showers:', cnt_sh, 'michels:', cnt_michel, 'empty:', cnt_void
-
-    #close dataset
-    db.close()
 
 if __name__ == "__main__":
     main(argv)

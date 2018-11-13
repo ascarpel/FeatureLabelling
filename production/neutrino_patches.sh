@@ -1,11 +1,7 @@
 #!/bin/bash
 
-#scl enable python27 bash
-#source /afs/cern.ch/sw/lcg/external/gcc/4.9/x86_64-slc6-gcc49-opt/setup.sh
-#source /afs/cern.ch/sw/lcg/app/releases/ROOT/6.06.06/x86_64-slc6-gcc49-opt/root/bin/thisroot.sh
-
 # choose view
-view=1
+view=0
 
 # get input
 export InputFileEOS=$1
@@ -44,15 +40,20 @@ do
 done
 
 # output
-export OutputFileLocal="db_view_${view}_${Number}.hdf5"
-export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/hdf5"
+export OutputFileLocal="db_view_${view}_${Number}.tar.gz"
+export OutputPathEOS="/eos/user/a/ascarpel/CNN/neutrino/images/"
 export OutputFileEOS=$OutputPathEOS"/"$OutputFileLocal
 mkdir -p $OutputPathEOS
 rm -f $OutputFileEOS
 
-# run script
-python /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/prepare_patches_em-trk-michel-none.py -i $InputFileLocal -o ./
-mv db_view_${view}.hdf5 db_view_${view}_${Number}.hdf5
+# run script:
+# make a fodler where to store all the .png images
+# compress the folder
+# copy compress folder to eos
+export ZipFolder="dbimages${view}_${Number}"
+mkdir $ZipFolder
+python /afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/prepare_patches_em-trk-michel-none.py -i $InputFileLocal -o $ZipFolder -v $view
+tar -zcvf $OutputFileLocal $ZipFolder
 
 # copying the npy output file to eos sometimes fails. Try max 100 times. Also, sometimes the file is on eos, but is empty (0 bytes) or has 731 bytes. In that case, copy again.
 CounterCopyToEOS=1
@@ -60,14 +61,20 @@ while ( [ ! -f $OutputFileEOS ] || [ $(stat -c%s "$OutputFileEOS") != $(stat -c%
 do
   echo "Copying text output file to EOS, attempt #$CounterCopyToEOS"
   cp $OutputFileLocal $OutputPathEOS
-  echo ".npy file size on EOS: "$(stat -c%s "$OutputFileLocal")
+  echo "File size on EOS: "$(stat -c%s "$OutputFileLocal")
   let CounterCopyToEOS=CounterCopyToEOS+1
 
   if [ $(stat -c%s "$OutputFileEOS") != $(stat -c%s "$OutputFileLocal") ]
   then
     rm -f $OutputFileEOS
   fi
+
+  # Untar file on eos
+  tar -xvf $OutputFileEOS -C $OutputPathEOS
+  rm $OutputFileEOS
+
 done
 
 rm -f $InputFileLocal
+rm -rf $ZipFolder
 rm -f $OutputFileLocal
