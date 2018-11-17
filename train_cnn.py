@@ -131,8 +131,6 @@ class RecordHistory(Callback):
         np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
         np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )
 
->>>>>>> 38519f94dca08b2348b57eaaf318d43f76f44922
-
 #######################  model configuration  ##################################
 
 print 'Reading configuration...'
@@ -220,7 +218,7 @@ with tf.device('/gpu:' + args.gpu):
     sgd = SGD(lr=0.01, decay=1e-5, momentum=0.9, nesterov=True)
     model = Model(inputs=[main_input], outputs=[em_trk_none, michel])
     model.compile(
-                  optimizer=sgd,
+                  optimizer='sgd',
                   loss={'em_trk_none_netout': 'categorical_crossentropy', 'michel_netout': 'mean_squared_error'},
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
                   metrics=['accuracy']

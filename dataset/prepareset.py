@@ -96,17 +96,17 @@ class MakeSample():
         #reshuffle the list
         random.shuffle( self.fileslist )
 
-    def __print_num_of_classes( self ):
+    def __print_num_of_classes( self, fileslist ):
         """
         Print the total number of files processed and how many files per class are present
         """
 
-        tracks = [ file for file in self.fileslist if '_track_' in file ]
-        shower = [ file for file in self.fileslist if '_shower_' in file ]
-        none   = [ file for file in self.fileslist if '_none_' in file ]
-        michel = [ file for file in self.fileslist if '_michel_' in file ]
+        tracks = [ file for file in fileslist if '_track_' in file ]
+        shower = [ file for file in fileslist if '_shower_' in file ]
+        none   = [ file for file in fileslist if '_none_' in file ]
+        michel = [ file for file in fileslist if '_michel_' in file ]
 
-        print " All files: %d " % len( self.fileslist )
+        print " All files: %d " % len( fileslist )
         print " Tracks:    %d " % len( tracks )
         print " Showers:   %d " % len( shower )
         print " Michel:    %d " % len( michel )
@@ -124,7 +124,7 @@ class MakeSample():
         random.shuffle( self.fileslist )
 
         #print how many fiels per classes from the list
-        self.__print_num_of_classes()
+        self.__print_num_of_classes( self.fileslist )
 
 
     def create_links(self, target_dir, sample_size ):
@@ -139,6 +139,7 @@ class MakeSample():
 
         index = 0
         num = sample_size
+        newfileslist = [] #a new list holding the files processed
 
         if num > len( self.fileslist ):
             num = len( self.fileslist )-1
@@ -163,8 +164,9 @@ class MakeSample():
             if dirname !=0:
                 #make a soft link in the given folder
                 statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
-                #print statement
                 os.system(statement)
+                #add the file to the newfileslist
+                newfileslist.append( target_dir+"/"+dirname+"/"+newname )
             else:
                 print 'Invalid label in filename!'
                 print 'Options are: track, shower, michel, none'
@@ -172,6 +174,9 @@ class MakeSample():
             self.fileslist.remove(fullname)
             index += 1
             num -= 1
+            
+        print "In folder %s" % target_dir
+        self.__print_num_of_classes( newfileslist )
 
     def remove_links(self, target_dir, option ):
         """
@@ -197,7 +202,7 @@ class MakeSample():
 
 def main():
 
-    filelist="/eos/user/a/ascarpel/CNN/neutrino/files.list"
+    filelist="/eos/user/a/ascarpel/CNN/neutrino/images/files.list"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
     validation_size = int(sys.argv[3])
