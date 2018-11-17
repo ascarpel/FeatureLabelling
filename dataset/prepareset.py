@@ -186,12 +186,12 @@ class MakeSample():
                 print 'Invalid label in filename!'
                 print 'Options are: track, shower, michel, none'
 
-            print "In folder %s " % target_dir
-            self.__print_num_of_classes( newlist )
-
             self.fileslist.remove(fullname)
             index += 1
             num += 1
+
+        print "In folder %s " % target_dir
+        self.__print_num_of_classes( newlist )
 
     def remove_links(self, target_dir, option ):
         """
