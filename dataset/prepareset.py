@@ -140,6 +140,7 @@ class MakeSample():
         index = 0
         num = 0
         n_skip = 0
+        newlist = []
 
         count_showers = 0
 
