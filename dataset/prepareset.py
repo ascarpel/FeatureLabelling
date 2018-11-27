@@ -156,19 +156,17 @@ class MakeSample():
 
             self.__print_message( num, sample_size )
 
-            fullname = self.fileslist[num]
-
-            if '_shower_' in fullname and count_showers > 0.4*sample_size:
-                n_skip =+1
-                if num+n_skip < len( self.fileslist ):
-                    fullname = self.fileslist[num + n_skip]
-                else:
-                    print "Sample size length reached"
-                    return
-            elif '_shower_' in fullname:
+            if '_shower_' in self.fileslist[ num+n_skip ] and count_showers < 0.4*sample_size:
                 count_showers += 1
+            elif '_shower_' in self.fileslist[ num + n_skip ]:
+                n_skip +=1
+                continue
+
+            if num+n_skip < len( self.fileslist ):
+                fullname = self.fileslist[ num+n_skip ]
             else:
-                n_skip = 0
+                print "Sample size length reached"
+                return
 
             name = self.__get_name( fullname ) #isolate path
             dirname = self.__get_labes_from_name(name)
@@ -216,7 +214,7 @@ class MakeSample():
 
 def main():
 
-    filelist="/eos/user/a/ascarpel/CNN/neutrino/images/files.list"
+    filelist="/eos/user/a/ascarpel/CNN/particlegun/files.list"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
     validation_size = int(sys.argv[3])
@@ -227,17 +225,17 @@ def main():
     #check and remove invalid links
     mysample.remove_links( "./training/", "all" )
     mysample.remove_links( "./testing/", "all" )
-    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "all" )
+    mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "all" )
 
     #previously created links are automatically removed
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
-    mysample.create_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", validation_size )
+    mysample.create_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", validation_size )
 
     #check and remove invalid links
     mysample.remove_links( "./training/", "invalid" )
     mysample.remove_links( "./testing/", "invalid" )
-    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "invalid" )
+    mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
 
     print "All done"
 
