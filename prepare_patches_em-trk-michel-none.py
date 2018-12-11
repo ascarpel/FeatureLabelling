@@ -7,8 +7,6 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 import argparse
-from scipy.misc import toimage
-#from PIL import Image
 
 #import matplotlib
 import matplotlib
@@ -65,6 +63,9 @@ def main(argv):
     ##### make patches #########################################################
 
     max_capacity = 600
+
+    db = np.zeros((max_capacity, PATCH_SIZE_W, PATCH_SIZE_D), dtype=np.float32)
+    db_y = np.zeros((max_capacity, 4), dtype=np.int32)
 
     patch_area = PATCH_SIZE_W * PATCH_SIZE_D
 
@@ -226,27 +227,8 @@ def main(argv):
                         continue
 
                     if cnt_ind < max_capacity:
-
-                        db_x = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
-
-                        #get the human readable label
-                        if target[0] == 1:
-                             label = "track"
-                        elif target[1] == 1:
-                             label = "shower"
-                        elif target[2] == 1:
-                             label = "michel"
-                        elif target[3] == 1:
-                             label = "none"
-                        else:
-                             print "Should never happen"
-
-                        #save the image in .
-                        imagename = "%s/db_%s_view_%d_%d.png" % ( OUTPUT_DIR, label, selected_view_idx, cnt_ind )
-                        #Image.fromarray( db_x ).save( imagename)
-                        toimage( db_x, mode='I' ).save( imagename )
-                        #np.save( imagename.split('.')[0]+'.npy', db_x )
-
+                        db[cnt_ind] = get_patch(raw, i, j, PATCH_SIZE_W, PATCH_SIZE_D)
+                        db_y[cnt_ind] = target
                         cnt_ind += 1
                     else:
                         max_capacity_reached = True
@@ -256,6 +238,9 @@ def main(argv):
             print 'Selected: tracks', sel_trk, 'showers', sel_sh, 'empty', sel_empty, '/// muons', sel_muon, 'michel', sel_michel, 'clean trk', sel_clean_trk, 'near nu', sel_near_nu
 
     print 'Added', cnt_ind, 'tracks:', cnt_trk, 'showers:', cnt_sh, 'michels:', cnt_michel, 'empty:', cnt_void
+
+    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_x', db[:cnt_ind])
+    np.save(OUTPUT_DIR+'/db_view_'+str(selected_view_idx)+'_y', db_y[:cnt_ind])
 
 if __name__ == "__main__":
     main(argv)
