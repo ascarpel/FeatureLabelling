@@ -4,8 +4,8 @@
     "module_name": "datadump",
     "input_dir": "/eos/user/a/ascarpel/CNN/neutrino/root/1",
     "output_dir": "./",
-    "patch_size_w": 44,
-    "patch_size_d": 48,
+    "patch_size_w": 66,
+    "patch_size_d": 68,
 
     "doing_nue": false,
     "selected_view_idx": 0,
@@ -22,10 +22,8 @@
 
   "training_on_patches" : {
     "input_dir": "dataset/",
-    "n_training": 6000,
-    "n_testing":  3000,
     "batch_size": 256,
     "nb_classes": 4,
-    "nb_epoch"  : 2
+    "nb_epoch"  : 10
   }
 }

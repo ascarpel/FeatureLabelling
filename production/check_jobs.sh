@@ -6,8 +6,8 @@
 ################################################################################
 
 export argumentList=$1
-export eosfolder="/eos/user/a/ascarpel/CNN/neutrino/"
-export filelist="/eos/user/a/ascarpel/CNN/neutrino/files.list"
+export eosfolder="/eos/user/a/ascarpel/CNN/particlegun/images/"
+export filelist="/eos/user/a/ascarpel/CNN/particlegun/files.list"
 
 #make file.list ================================================================
 if [ ! -f $filelist  ]; then
@@ -28,11 +28,13 @@ while read line; do
   export failview1=false
   export filenum=0
 
+  echo $num
+
   #check view 0 ================================================================
   if [ -d ${eosfolder}"dbimages0_${num}"  ]; then
 
     echo ${eosfolder}"dbimages0_${num}"
-    ls -f ${eosfolder}"dbimages0_${num}"/* > $filelist
+    ls -f ${eosfolder}"dbimages0_${num}"/* >> $filelist
 
   else
       failview0=true
@@ -42,7 +44,7 @@ while read line; do
   if [ -d ${eosfolder}"dbimages1_${num}"  ]; then
 
     echo ${eosfolder}"dbimages1_${num}"
-    ls -f ${eosfolder}"dbimages0_${num}"/* > $filelist
+    ls -f ${eosfolder}"dbimages1_${num}"/* >> $filelist
 
   else
     failview1=true
