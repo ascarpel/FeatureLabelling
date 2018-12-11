@@ -5,6 +5,8 @@ parser.add_argument('-o', '--output', help="Output model file name", default='mo
 parser.add_argument('-g', '--gpu', help="Which GPU index", default='0')
 args = parser.parse_args()
 
+#################### module import and initialization  #########################
+
 import os
 os.environ['KERAS_BACKEND'] = "tensorflow"
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -47,6 +49,17 @@ def save_model(model, name):
         return True   # Save successful
     except:
         return False  # Save failed
+
+def sample_len( dir ):
+    """
+    Return the total number of files composing the sample in dir
+    """
+    num = 0
+    listsubdir = [ subdir for subdir in os.listdir(dir)  ]
+    for subdir in listsubdir:
+        num += len( os.listdir(dir+subdir) )
+
+    return num
 
 #######################  keras callbacks class  ################################
 
@@ -118,7 +131,6 @@ class RecordHistory(Callback):
         np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
         np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )
 
-
 #######################  model configuration  ##################################
 
 print 'Reading configuration...'
@@ -126,14 +138,18 @@ config = read_config(args.config)
 
 CNN_INPUT_DIR = config['training_on_patches']['input_dir']
 # input image dimensions
-PATCH_SIZE_W, PATCH_SIZE_D = get_patch_size(CNN_INPUT_DIR)
+PATCH_SIZE_W = config['prepare_data_em_track']['patch_size_w']
+PATCH_SIZE_D = config['prepare_data_em_track']['patch_size_d']
 img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 
 batch_size = config['training_on_patches']['batch_size']
 nb_classes = config['training_on_patches']['nb_classes']
 nb_epoch = config['training_on_patches']['nb_epoch']
-n_training = config["training_on_patches"]["n_training"]
-n_testing = config["training_on_patches"]["n_testing"]
+n_training = sample_len( "/data/ascarpel/FeatureLabelling/dataset/training/" )
+n_testing = sample_len( "/data/ascarpel/FeatureLabelling/dataset/testing/" )
+
+print " Training sample size: %d " % n_training
+print " Testing sample size: %d " % n_testing
 
 nb_pool = 2 # size of pooling area for max pooling
 
@@ -202,12 +218,11 @@ with tf.device('/gpu:' + args.gpu):
     sgd = SGD(lr=0.01, decay=1e-5, momentum=0.9, nesterov=True)
     model = Model(inputs=[main_input], outputs=[em_trk_none, michel])
     model.compile(
-                  optimizer=sgd,
+                  optimizer='sgd',
                   loss={'em_trk_none_netout': 'categorical_crossentropy', 'michel_netout': 'mean_squared_error'},
                   loss_weights={'em_trk_none_netout': 0.1, 'michel_netout': 1.},
                   metrics=['accuracy']
                   )
-
 
 ##########################  callbacks  #########################################
 
@@ -290,10 +305,9 @@ if n_training/batch_size == 0:
 elif n_testing/batch_size == 0:
     print "testing steps not configured! "
 
-
 print 'Fit config:', cfg_name
 model.fit_generator(
-                     generator=generate_data_generator(train_gen, './dataset/training/', batch_size  ),
+                     generator=generate_data_generator(train_gen, '/training/training', batch_size  ),
                      validation_data=generate_data_generator(test_gen, './dataset/testing/', batch_size  ),
                      steps_per_epoch=n_training/batch_size,
                      validation_steps=n_testing/batch_size,
