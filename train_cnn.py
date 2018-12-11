@@ -145,8 +145,8 @@ img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 batch_size = config['training_on_patches']['batch_size']
 nb_classes = config['training_on_patches']['nb_classes']
 nb_epoch = config['training_on_patches']['nb_epoch']
-n_training = sample_len( "/data/ascarpel/FeatureLabelling/dataset/training/" )
-n_testing = sample_len( "/data/ascarpel/FeatureLabelling/dataset/testing/" )
+n_training = sample_len( CNN_INPUT_DIR+"/training/" )
+n_testing = sample_len( CNN_INPUT_DIR+"/testing/" )
 
 print " Training sample size: %d " % n_training
 print " Testing sample size: %d " % n_testing
@@ -307,8 +307,8 @@ elif n_testing/batch_size == 0:
 
 print 'Fit config:', cfg_name
 model.fit_generator(
-                     generator=generate_data_generator(train_gen, '/training/training', batch_size  ),
-                     validation_data=generate_data_generator(test_gen, './dataset/testing/', batch_size  ),
+                     generator=generate_data_generator(train_gen, CNN_INPUT_DIR+'/training/', batch_size  ),
+                     validation_data=generate_data_generator(test_gen, CNN_INPUT_DIR+'/testing/', batch_size  ),
                      steps_per_epoch=n_training/batch_size,
                      validation_steps=n_testing/batch_size,
                      epochs=nb_epoch,

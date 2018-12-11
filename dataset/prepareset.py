@@ -96,17 +96,18 @@ class MakeSample():
         #reshuffle the list
         random.shuffle( self.fileslist )
 
-    def __print_num_of_classes( self, fileslist ):
+    def __print_num_of_classes( self, list ):
         """
         Print the total number of files processed and how many files per class are present
         """
 
-        tracks = [ file for file in fileslist if '_track_' in file ]
-        shower = [ file for file in fileslist if '_shower_' in file ]
-        none   = [ file for file in fileslist if '_none_' in file ]
-        michel = [ file for file in fileslist if '_michel_' in file ]
+        tracks = [ file for file in list if '_track_' in file ]
+        shower = [ file for file in list if '_shower_' in file ]
+        none   = [ file for file in list if '_none_' in file ]
+        michel = [ file for file in list if '_michel_' in file ]
 
-        print " All files: %d " % len( fileslist )
+        print " All files: %d " % len( list )
+
         print " Tracks:    %d " % len( tracks )
         print " Showers:   %d " % len( shower )
         print " Michel:    %d " % len( michel )
@@ -138,45 +139,65 @@ class MakeSample():
         self.remove_links( target_dir, 'all' )
 
         index = 0
-        num = sample_size
-        newfileslist = [] #a new list holding the files processed
+        num = 0
+        n_skip = 0
+        newlist = []
 
-        if num > len( self.fileslist ):
-            num = len( self.fileslist )-1
-            print "resclaed input to: %d" % num
+        count_showers = 0
 
-        if num==0:
+        if sample_size > len( self.fileslist ):
+            sample_size = len( self.fileslist )
+            print "resclaed sample size to: %d" % sample_size
+
+        if sample_size==0:
             print "No files for class in folder %s" % target_dir
             return
 
-        while num >= 0:
+        while num < sample_size:
 
-            self.__print_message( (sample_size-num), sample_size )
+            self.__print_message( num, sample_size )
 
-            fullname = self.fileslist[num]
+            if '_shower_' in self.fileslist[ num+n_skip ] and count_showers < 0.6*sample_size:
+                count_showers += 1
+            elif '_shower_' in self.fileslist[ num + n_skip ]:
+                n_skip +=1
+                continue
+
+            if num+n_skip < len( self.fileslist ):
+                fullname = self.fileslist[ num+n_skip ]
+            else:
+                print "Sample size length reached"
+                return
+
             name = self.__get_name( fullname ) #isolate path
             dirname = self.__get_labes_from_name(name)
             extension = self.__get_extension(name)
 
             #append num at the end as unique index for each file
             newname = name.split('.')[0]+"_"+str(index)+"."+extension
-
+            
             if dirname !=0:
-                #make a soft link in the given folder
-                statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
-                os.system(statement)
-                #add the file to the newfileslist
-                newfileslist.append( target_dir+"/"+dirname+"/"+newname )
+                
+                if 'validation/' in target_dir:
+                    #copy the file on eos for the validation sample
+                    statement = "scp %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
+                    os.system(statement)
+                    newlist.append( target_dir+"/"+dirname+"/"+newname )
+                else:
+                    #make a soft link in the given folder
+                    statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
+                    os.system(statement)
+                    newlist.append( target_dir+"/"+dirname+"/"+newname )
             else:
                 print 'Invalid label in filename!'
                 print 'Options are: track, shower, michel, none'
 
             self.fileslist.remove(fullname)
             index += 1
-            num -= 1
-            
-        print "In folder %s" % target_dir
-        self.__print_num_of_classes( newfileslist )
+            num += 1
+
+        print "In folder %s " % target_dir
+        self.__print_num_of_classes( newlist )
 
     def remove_links(self, target_dir, option ):
         """
@@ -187,7 +208,7 @@ class MakeSample():
 
         for dir in listdir:
 
-            print 'check for links in folder: ' + target_dir+dir
+            print 'check links in folder: ' + target_dir+dir
 
             for file in os.listdir(target_dir+dir):
 
@@ -195,14 +216,13 @@ class MakeSample():
 
                 if option=='invalid':
                     if not os.path.exists(os.readlink(target_dir+dir+'/'+file )):
-                        print "file: %s doesn't exist" % file
                         os.system(statement)
                 if option=='all':
                         os.system(statement)
 
 def main():
 
-    filelist="/eos/user/a/ascarpel/CNN/neutrino/images/files.list"
+    filelist="/data/ascarpel/images/particlegun/files.list"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
     validation_size = int(sys.argv[3])
@@ -213,17 +233,17 @@ def main():
     #check and remove invalid links
     mysample.remove_links( "./training/", "all" )
     mysample.remove_links( "./testing/", "all" )
-    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "all" )
+    mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "all" )
 
     #previously created links are automatically removed
     mysample.create_links( "./training/", training_size )
     mysample.create_links( "./testing/", testing_size )
-    mysample.create_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", validation_size )
+    mysample.create_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", validation_size )
 
     #check and remove invalid links
     mysample.remove_links( "./training/", "invalid" )
     mysample.remove_links( "./testing/", "invalid" )
-    mysample.remove_links( "/eos/user/a/ascarpel/CNN/neutrino/validation/", "invalid" )
+    #mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
 
     print "All done"
 
