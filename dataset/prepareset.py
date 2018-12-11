@@ -156,7 +156,7 @@ class MakeSample():
 
             self.__print_message( num, sample_size )
 
-            if '_shower_' in self.fileslist[ num+n_skip ] and count_showers < 0.4*sample_size:
+            if '_shower_' in self.fileslist[ num+n_skip ] and count_showers < 0.6*sample_size:
                 count_showers += 1
             elif '_shower_' in self.fileslist[ num + n_skip ]:
                 n_skip +=1
@@ -174,12 +174,19 @@ class MakeSample():
 
             #append num at the end as unique index for each file
             newname = name.split('.')[0]+"_"+str(index)+"."+extension
-
+            
             if dirname !=0:
-                #make a soft link in the given folder
-                statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
-                os.system(statement)
-                newlist.append( target_dir+"/"+dirname+"/"+newname )
+                
+                if 'validation/' in target_dir:
+                    #copy the file on eos for the validation sample
+                    statement = "scp %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
+                    os.system(statement)
+                    newlist.append( target_dir+"/"+dirname+"/"+newname )
+                else:
+                    #make a soft link in the given folder
+                    statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
+                    os.system(statement)
+                    newlist.append( target_dir+"/"+dirname+"/"+newname )
             else:
                 print 'Invalid label in filename!'
                 print 'Options are: track, shower, michel, none'
@@ -214,7 +221,7 @@ class MakeSample():
 
 def main():
 
-    filelist="/eos/user/a/ascarpel/CNN/particlegun/files.list"
+    filelist="/data/ascarpel/images/particlegun/files.list"
     training_size = int(sys.argv[1])
     testing_size = int(sys.argv[2])
     validation_size = int(sys.argv[3])
@@ -235,7 +242,7 @@ def main():
     #check and remove invalid links
     mysample.remove_links( "./training/", "invalid" )
     mysample.remove_links( "./testing/", "invalid" )
-    mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
+    #mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
 
     print "All done"
 
