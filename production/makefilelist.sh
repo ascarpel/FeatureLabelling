@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
 listname=${1}
-name=${2}
+name=${1}
+
 #config="/afs/cern.ch/work/a/ascarpel/private/FeatureLabelling/config.json"
 
-copydir="/eos/user/a/ascarpel/CNN/${name}/root/"
+copydir="/eos/user/w/wa105off/CNN/${name}/root/"
 #listname="filelist.txt"
 echo ${listname}
 echo ${copydir}
