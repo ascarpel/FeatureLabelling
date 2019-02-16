@@ -7,6 +7,10 @@ from os import listdir
 from os.path import isfile, join
 import os, json
 
+from keras.callbacks import Callback
+
+# Data prep ####################################################################
+
 def count_events(folder, key):
     nevents = 0
     dlist = [f for f in listdir(folder) if key in f]
@@ -200,3 +204,112 @@ def read_config(cfgname):
         print 'This script requires configuration file: config.json'
         exit(1)
     return config
+
+# Training #####################################################################
+
+def save_model(model, name):
+    try:
+        with open(name + '_architecture.json', 'w') as f:
+            f.write(model.to_json())
+        model.save_weights(name + '_weights.h5', overwrite=True)
+        return True   # Save successful
+    except:
+        return False  # Save failed
+
+#-------------------------------------------------------------------------------
+
+def get_label_3class( array ):
+    """
+    return a 3 class array with the binary classification of the image
+    """
+    if array[0] == 1:
+        return [1, 0, 0] #track
+    elif array[1] == 1:
+        return [0, 1, 0] #em
+    elif array[3] == 1:
+        return [0, 0, 1] #none
+    else:
+        print "get_label_3class: Invalid class option"
+
+#-------------------------------------------------------------------------------
+
+def get_label_1class( array ):
+    """
+    reurn 1 class array with binary classification of the image
+    """
+    if array[2] == 1:
+        return [1] #michel
+    elif array[2] == 0:
+        return [0] #nomichel
+    else:
+        print "get_label_1class: Invalid class option"
+
+# Callbacks ####################################################################
+
+class RecordHistory(Callback):
+
+    def on_train_begin(self, logs={}):
+
+        #losses
+        self.loss = []
+        self.em_trk_none_netout_loss = []
+        self.michel_netout_loss = []
+
+        #val losses
+        self.val_loss = []
+        self.em_trk_none_netout_val_loss = []
+        self.michel_netout_val_loss = []
+
+        #acc
+        self.em_trk_none_netout_acc = []
+        self.michel_netout_acc = []
+
+        #val acc
+        self.em_trk_none_netout_val_acc = []
+        self.michel_netout_val_acc = []
+
+    def on_epoch_end(self, batch, logs={}):
+
+        #loss
+        self.loss.append(logs.get('loss'))
+        self.em_trk_none_netout_loss.append(logs.get('em_trk_none_netout_loss'))
+        self.michel_netout_loss.append(logs.get('michel_netout_loss'))
+
+        #val loss
+        self.val_loss.append(logs.get('val_loss'))
+        self.em_trk_none_netout_val_loss.append(logs.get('val_em_trk_none_netout_loss'))
+        self.michel_netout_val_loss.append(logs.get('val_michel_netout_loss'))
+
+        #acc
+        self.em_trk_none_netout_acc.append( logs.get('em_trk_none_netout_acc') )
+        self.michel_netout_acc.append( logs.get('michel_netout_acc') )
+
+        #val acc
+        self.em_trk_none_netout_val_acc.append( logs.get('val_em_trk_none_netout_acc') )
+        self.michel_netout_val_acc.append( logs.get('val_michel_netout_acc') )
+
+    def print_history( self ):
+        print self.loss
+        print self.em_trk_none_netout_loss
+        print self.michel_netout_loss
+        print self.val_loss
+        print self.em_trk_none_netout_val_loss
+        print self.michel_netout_val_loss
+
+        print self.em_trk_none_netout_acc
+        print self.michel_netout_acc
+        print self.em_trk_none_netout_val_acc
+        print self.michel_netout_val_acc
+
+    def save_history( self, outdir ):
+        np.save( outdir+'loss.npy' , self.loss )
+        np.save( outdir+'em_trk_none_netout_loss.npy' , self.em_trk_none_netout_loss )
+        np.save( outdir+'michel_netout_loss.npy' , self.michel_netout_loss )
+        np.save( outdir+'val_loss.npy' , self.val_loss )
+        np.save( outdir+'em_trk_none_netout_val_loss.npy' , self.em_trk_none_netout_val_loss )
+        np.save( outdir+'michel_netout_val_loss.npy' , self.michel_netout_val_loss )
+
+        np.save( outdir+'em_trk_none_netout_acc.npy' , self.em_trk_none_netout_acc)
+        np.save( outdir+'michel_netout_acc.npy' , self.michel_netout_acc )
+        np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
+        np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )

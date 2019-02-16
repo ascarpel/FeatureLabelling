@@ -23,7 +23,9 @@
   "training_on_patches" : {
     "input_dir": "./dataset/",
     "validation_dir": "/eos/user/a/ascarpel/CNN/neutrino/validation/",
-    "batch_size": 256,
+    "n_training": 20,
+    "n_testing": 10,
+    "batch_size": 10,
     "nb_classes": 4,
     "nb_epoch"  : 10
   }

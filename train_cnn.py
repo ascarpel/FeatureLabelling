@@ -1,3 +1,8 @@
+################################################################################
+#
+#
+################################################################################
+
 import argparse
 parser = argparse.ArgumentParser(description='Run CNN training on patches with a few different hyperparameter sets.')
 parser.add_argument('-c', '--config', help="JSON with script configuration", default='config.json')
@@ -26,112 +31,19 @@ from keras.layers import Input
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Conv2D, MaxPooling2D
 from keras.layers.advanced_activations import LeakyReLU
-# from keras.layers.normalization import BatchNormalization
 from keras.preprocessing.image import ImageDataGenerator
 from keras.optimizers import SGD
 from keras.utils import np_utils
-from keras.callbacks import Callback
 from keras.callbacks import TensorBoard
+from keras.backend import get_session
 from os.path import exists, isfile, join
 import json
 
-import h5py
+from utils import read_config
+from utils import get_label_1class, get_label_3class
+from utils import RecordHistory
 
-from utils import read_config, get_patch_size, count_events
-
-#######################  save model function  ##################################
-
-def save_model(model, name):
-    try:
-        with open(name + '_architecture.json', 'w') as f:
-            f.write(model.to_json())
-        model.save_weights(name + '_weights.h5', overwrite=True)
-        return True   # Save successful
-    except:
-        return False  # Save failed
-
-def sample_len( dir ):
-    """
-    Return the total number of files composing the sample in dir
-    """
-    num = 0
-    listsubdir = [ subdir for subdir in os.listdir(dir)  ]
-    for subdir in listsubdir:
-        num += len( os.listdir(dir+subdir) )
-
-    return num
-
-#######################  keras callbacks class  ################################
-
-class RecordHistory(Callback):
-
-    def on_train_begin(self, logs={}):
-
-        #losses
-        self.loss = []
-        self.em_trk_none_netout_loss = []
-        self.michel_netout_loss = []
-
-        #val losses
-        self.val_loss = []
-        self.em_trk_none_netout_val_loss = []
-        self.michel_netout_val_loss = []
-
-        #acc
-        self.em_trk_none_netout_acc = []
-        self.michel_netout_acc = []
-
-        #val acc
-        self.em_trk_none_netout_val_acc = []
-        self.michel_netout_val_acc = []
-
-    def on_epoch_end(self, batch, logs={}):
-
-        #loss
-        self.loss.append(logs.get('loss'))
-        self.em_trk_none_netout_loss.append(logs.get('em_trk_none_netout_loss'))
-        self.michel_netout_loss.append(logs.get('michel_netout_loss'))
-
-        #val loss
-        self.val_loss.append(logs.get('val_loss'))
-        self.em_trk_none_netout_val_loss.append(logs.get('val_em_trk_none_netout_loss'))
-        self.michel_netout_val_loss.append(logs.get('val_michel_netout_loss'))
-
-        #acc
-        self.em_trk_none_netout_acc.append( logs.get('em_trk_none_netout_acc') )
-        self.michel_netout_acc.append( logs.get('michel_netout_acc') )
-
-        #val acc
-        self.em_trk_none_netout_val_acc.append( logs.get('val_em_trk_none_netout_acc') )
-        self.michel_netout_val_acc.append( logs.get('val_michel_netout_acc') )
-
-    def print_history( self ):
-        print self.loss
-        print self.em_trk_none_netout_loss
-        print self.michel_netout_loss
-        print self.val_loss
-        print self.em_trk_none_netout_val_loss
-        print self.michel_netout_val_loss
-
-        print self.em_trk_none_netout_acc
-        print self.michel_netout_acc
-        print self.em_trk_none_netout_val_acc
-        print self.michel_netout_val_acc
-
-    def save_history( self, outdir ):
-        np.save( outdir+'loss.npy' , self.loss )
-        np.save( outdir+'em_trk_none_netout_loss.npy' , self.em_trk_none_netout_loss )
-        np.save( outdir+'michel_netout_loss.npy' , self.michel_netout_loss )
-        np.save( outdir+'val_loss.npy' , self.val_loss )
-        np.save( outdir+'em_trk_none_netout_val_loss.npy' , self.em_trk_none_netout_val_loss )
-        np.save( outdir+'michel_netout_val_loss.npy' , self.michel_netout_val_loss )
-
-        np.save( outdir+'em_trk_none_netout_acc.npy' , self.em_trk_none_netout_acc)
-        np.save( outdir+'michel_netout_acc.npy' , self.michel_netout_acc )
-        np.save( outdir+'em_trk_none_netout_val_acc.npy' , self.em_trk_none_netout_val_acc )
-        np.save( outdir+'michel_netout_val_acc.npy' , self.michel_netout_val_acc )
-
-#######################  model configuration  ##################################
+#######################  read configuration file ###############################
 
 print 'Reading configuration...'
 config = read_config(args.config)
@@ -145,11 +57,13 @@ img_rows, img_cols = PATCH_SIZE_W, PATCH_SIZE_D
 batch_size = config['training_on_patches']['batch_size']
 nb_classes = config['training_on_patches']['nb_classes']
 nb_epoch = config['training_on_patches']['nb_epoch']
-n_training = sample_len( CNN_INPUT_DIR+"/training/" )
-n_testing = sample_len( CNN_INPUT_DIR+"/testing/" )
+n_training=config['training_on_patches']['n_training']
+n_testing=config['training_on_patches']['n_testing']
 
 print " Training sample size: %d " % n_training
 print " Testing sample size: %d " % n_testing
+
+#######################  model configuration  ##################################
 
 nb_pool = 2 # size of pooling area for max pooling
 
@@ -224,99 +138,74 @@ with tf.device('/gpu:' + args.gpu):
                   metrics=['accuracy']
                   )
 
-##########################  callbacks  #########################################
+#######################  TF Dataset and generator  #############################
 
+def data_generator( filename, batch_size, img_rows, img_cols, sess):
+
+    feature = {'image': tf.FixedLenFeature([], tf.string ),
+               'label': tf.FixedLenFeature([], tf.string)}
+
+    def _parse_record(example_proto):
+        """
+        Parse .tfrecord files back into image and labels
+        """
+
+        example = tf.parse_single_example(example_proto, feature)
+        im = tf.decode_raw(example['image'], tf.float32)
+        im = tf.reshape(im, (img_rows, img_cols, 1))
+
+        label = tf.decode_raw(example['label'], tf.int32)
+        label = tf.reshape(label, (4, 1))
+
+        return (im, label)
+
+    dataset =  tf.data.TFRecordDataset(filename).map( _parse_record )
+    dataset = dataset.shuffle(1000).batch(batch_size)
+    #add data augmentation
+
+    #make the iterator as one_shot_iterator
+    iter = dataset.make_one_shot_iterator()
+
+    el = iter.get_next()
+
+    while True:
+        try:
+            ntuple = sess.run(el)
+            em_trk_none = np.asarray([ get_label_3class(num) for num in ntuple[1] ])
+            michel_netout = np.asarray([ get_label_1class(num) for num in ntuple[1] ])
+            yield {'main_input': ntuple[0]}, {'em_trk_none_netout': em_trk_none, 'michel_netout': michel_netout}
+        except tf.errors.OutOfRangeError:
+            break
+
+######################### Model fit ############################################
+
+history = RecordHistory()
 tb = TensorBoard( log_dir=args.output+'/logs',
                   histogram_freq=0,
                   batch_size=batch_size,
                   write_graph=True,
                   write_images=True
                 )
-history = RecordHistory()
-
-##########################  generator  #########################################
-
-train_gen = ImageDataGenerator(
-                rescale=1./255,
-                featurewise_center=False, samplewise_center=False,
-                featurewise_std_normalization=False,
-                samplewise_std_normalization=False,
-                zca_whitening=False,
-                rotation_range=0, width_shift_range=0, height_shift_range=0,
-                horizontal_flip=True, # randomly flip images
-                vertical_flip=False )  # only horizontal flip
-
-test_gen = ImageDataGenerator( rescale=1./255 )
-
-def get_label_3class( num ):
-    """
-    return a 3 class array with the binary classification of the image
-    """
-    if num == 3:
-        return [1, 0, 0] #track
-    elif num == 0 or num==2:
-        return [0, 1, 0] #em
-    elif num == 1:
-        return [0, 0, 1] #none
-    else:
-        print "get_label_3class: Invalid class option"
-
-def get_label_1class( num ):
-    """
-    reurn 1 class array with binary classification of the image
-    """
-    if num == 0:
-        return [1] #michel
-    elif num == 1 or num == 2 or num == 3 :
-        return [0] #nomichel
-    else:
-        print "get_label_1class: Invalid class option"
-
-def generate_data_generator(generator, folder, b):
-    """
-    Input generator to the model. Read images from folders, prepare the batch
-    and make the output labels in the correct format
-    """
-
-    print folder
-
-    gen = generator.flow_from_directory(    directory=folder,
-                                            target_size=(img_rows, img_cols),
-                                            color_mode="grayscale",
-                                            batch_size=b,
-                                            class_mode = 'binary',
-                                            shuffle=True,
-                                            seed=7,
-                                            follow_links = True )
-    while True:
-            #make the dictionary to pass as input to the fit_generator method
-            ntuple = gen.next()
-
-            #convert the batch labels array
-            em_trk_none = np.asarray([ get_label_3class(num) for num in ntuple[1] ])
-            michel_netout = np.asarray([ get_label_1class(num) for num in ntuple[1] ])
-
-            yield {'main_input': ntuple[0]}, {'em_trk_none_netout': em_trk_none, 'michel_netout': michel_netout}
-
-##########################  training  ##########################################
 
 if n_training/batch_size == 0:
     print "training steps not configured! "
 elif n_testing/batch_size == 0:
     print "testing steps not configured! "
 
-print 'Fit config:', cfg_name
-model.fit_generator(
-                     generator=generate_data_generator(train_gen, CNN_INPUT_DIR+'/training/', batch_size  ),
-                     validation_data=generate_data_generator(test_gen, CNN_INPUT_DIR+'/testing/', batch_size  ),
-                     steps_per_epoch=n_training/batch_size,
-                     validation_steps=n_testing/batch_size,
-                     epochs=nb_epoch,
-                     verbose=1,
-                     callbacks=[tb, history],
-                    )
+with tf.Session() as sess:
 
-################################################################################
+    print 'Fit config:', cfg_name
+    model.fit_generator( generator=data_generator( '/data/ascarpel/test.tfrecord', batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
+                          validation_data=data_generator( '/data/ascarpel/test.tfrecord', batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
+                          steps_per_epoch=n_training/batch_size,
+                          validation_steps=n_testing/batch_size,
+                          epochs=nb_epoch,
+                          verbose=1,
+                          workers=0,
+                          callbacks=[tb, history],
+                         )
+
+######################### save history #########################################
 
 history.print_history()
 history.save_history(args.output)
@@ -325,3 +214,5 @@ if save_model(model, args.output + cfg_name):
     print('All done!')
 else:
     print('Error: model not saved.')
+
+print "All done"

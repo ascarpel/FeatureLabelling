@@ -269,7 +269,7 @@ class MakeTFRecord(  ):
                 np.reshape(image, (66, 68, 1))
                 np.reshape(label, (4, 1))
 
-                self._write( writer, image, label )
+                self._write( writer, image, label)
 
         writer.close()
         sys.stdout.flush()
@@ -285,7 +285,8 @@ class MakeTFRecord(  ):
 
             # define your tfrecord again. Remember that you saved your image as a string.
             feature = {'image': tf.FixedLenFeature([], tf.string),
-                       'label': tf.FixedLenFeature([], tf.string)}
+                       '3class': tf.FixedLenFeature([], tf.string),
+                       '1class': tf.FixedLenFeature([], tf.string)}
 
             # Create a list of filenames and pass it to a queue
             filename_queue = tf.train.string_input_producer([self.record_name], num_epochs=1)
@@ -303,17 +304,19 @@ class MakeTFRecord(  ):
             image = tf.decode_raw(features['image'], tf.float32)
 
             # Cast label data into int32
-            label = tf.decode_raw(features['label'], tf.int32)
+            label3class = tf.decode_raw(features['3class'], tf.int32)
+            label1class = tf.decode_raw(features['1class'], tf.int32)
 
             # Reshape image data into the original shape
             image = tf.reshape(image, [66, 68, 1])
-            label = tf.reshape(label, [4, 1])
+            label3class = tf.reshape(label3class, [3, 1])
+            label1class = tf.reshape(label1class, [1, 1])
 
-            images, labels = tf.train.shuffle_batch( [image, label],
-                                                      batch_size=10,
-                                                      capacity=30,
+            images, labels = tf.train.shuffle_batch( [image, label3class, label1class],
+                                                      batch_size=1,
+                                                      capacity=2,
                                                       num_threads=1,
-                                                      min_after_dequeue=10
+                                                      min_after_dequeue=1
                                                     )
 
             # Initialize all global and local variables
@@ -324,7 +327,7 @@ class MakeTFRecord(  ):
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            img, lbl = sess.run([images, labels])
+            img, l3class, l1class = sess.run([images, label3class, label1class])
             img = img.astype(np.float32)
 
             # Stop the threads
@@ -334,7 +337,7 @@ class MakeTFRecord(  ):
             coord.join(threads)
             sess.close()
 
-        return img, lbl
+        return img, l3class, l1class
 
 
 def main():
@@ -362,14 +365,8 @@ def main():
     #    mysample.remove_links( "./testing/", "invalid" )
     #    ##mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
 
-    mysample = MakeTFRecord("/data/ascarpel/", "test.tfrecord")
+    mysample = MakeTFRecord("/data/ascarpel/", "/data/ascarpel/test.tfrecord")
     mysample.numpy2tfrecord()
-    images, labels = mysample.tfrecord2numpy()
-
-    print np.shape(images)
-    print np.shape(labels)
-
-    for i, image in enumerate(images):
 
     print "All done"
 
