@@ -12,19 +12,32 @@ import os, sys
 import numpy as np
 import random
 
+import progressbar
+
+
 class MakeSample():
 
-    def __init__ ( self ):
+    def __init__ ( self, SEED=None ):
+
         #list containig all the files absolute address to use as input
         self.fileslist = []
         self.this_message = ""
         self.previous_message = ""
 
+        self.n_tot=0
+        self.n_tracks=0
+        self.n_showers=0
+        self.n_michel=0
+        self.n_none=0
+
+        #select a seed
+        if SEED != None:
+            random.seed(SEED)
+
     def __print_message(self, prog, tot):
         """
         Print progression
         """
-
         self.this_message = 'Complete: %d %%' % int(float(prog)/float(tot)*100.)
         if self.previous_message != self.this_message:
             print self.this_message
@@ -37,97 +50,95 @@ class MakeSample():
         path = ""
         for piece in file.split('/')[:-1]:
             path += piece+"/"
-
         return path
+
+    def __get_dirnum(self, file ):
+        dirname = file.split('/')[-2]
+        return dirname.split('_')[-1]
 
     def __get_name(self, file ):
         """
         return the name of a file with strucutre path/to/db_view_*_num.hdf5
         """
-
         name = file.split('/')[-1]
-
         return name
 
     def __get_extension(self, file ):
         """
         Return the name of a file with strucutre path/to/db_view_*_num.hdf5
         """
-
         extension = file.split('.')[-1]
-
         return extension
 
-    def __get_labes_from_name( self, name ):
+    def __checkdir( self, dir ):
         """
-        Get the labels from the file name.
+        Check if the directory has both data and label
         """
 
-        #extension
-        name = name.split('.')[0]
-
-        #get splut array
-        spl_buffer = name.split('_')
-
-        #find class names in spl_buffer
-        if 'track' in spl_buffer:
-            return 'track'
-        elif 'shower' in spl_buffer:
-            return 'shower'
-        elif 'michel' in spl_buffer:
-            return 'michel'
-        elif 'none' in spl_buffer:
-            return 'none'
+        if '.tar.gz' in dir:
+            return False
+        if len([ f for f in os.listdir(dir) ]) == 2:
+            return True
         else:
-            return 0
+            return False
+
+    def __count_classes( self, file ):
+        """
+        count the classes
+        """
+        array = np.load(file, 'r+')
+        self.n_tot += len(array)
+        self.n_tracks += np.sum( [ entry[0] for entry in array  ] )
+        self.n_showers += np.sum( [ entry[1] for entry in array  ] )
+        self.n_michel += np.sum( [ entry[2] for entry in array  ] )
+        self.n_none += np.sum( [ entry[3] for entry in array  ] )
+
+    def __print_classes(self, dir):
+        """
+        Print the total number of files processed and how many files per class are present
+        """
+        print " Total Patches in %s: %d " % (dir, self.n_tot)
+        print " Tracks:    %d " % self.n_tracks
+        print " Showers:   %d " % self.n_showers
+        print " Michel:    %d " % self.n_michel
+        print " None:      %d " % self.n_none
+
+    def __reset_classes(self):
+        """
+        Reset to zero
+        """
+        self.n_tot=0
+        self.n_tracks=0
+        self.n_showers=0
+        self.n_michel=0
+        self.n_none=0
 
     def make_list_from_folder( self, dirname ):
         """
-        Fill the dirlist with all the .png images stored in the given directory
+        Fill the dirlist with all the .npy stored in the given directory
         """
 
         #loop over folders
-        dirlist = [ dirname+'/'+dir for dir in os.listdir(dirname) if '.tar.gz' not in dir ]
+        dirlist = [ dirname+dir for dir in os.listdir(dirname) if self.__checkdir(dirname+'/'+dir) ]
 
         #put all the files into a single list
         for dir in dirlist:
             print dir
-            self.fileslist = self.fileslist + [ dirname+'/'+f for f in os.listdir(dirname) if '.png' in f ]
+            self.fileslist = self.fileslist + [ dir+'/'+f for f in os.listdir(dir) if '_y.npy' in f]
 
         #reshuffle the list
         random.shuffle( self.fileslist )
-
-    def __print_num_of_classes( self, list ):
-        """
-        Print the total number of files processed and how many files per class are present
-        """
-
-        tracks = [ file for file in list if '_track_' in file ]
-        shower = [ file for file in list if '_shower_' in file ]
-        none   = [ file for file in list if '_none_' in file ]
-        michel = [ file for file in list if '_michel_' in file ]
-
-        print " All files: %d " % len( list )
-
-        print " Tracks:    %d " % len( tracks )
-        print " Showers:   %d " % len( shower )
-        print " Michel:    %d " % len( michel )
-        print " None:      %d " % len( none )
+        np.savetxt('files.list', self.fileslist, fmt='%s')
 
     def make_list_from_file( self, file ):
         """
         Fill dirlist with all the absolute paths in file
         """
-
         files = open(file, 'r')
-        self.fileslist = [ file.split('\n')[0] for file in files if '.png' in file ]
+        self.fileslist = [ file.split('\n')[0] for file in files if '_y.npy' in file ]
 
         #randomize the order
         random.shuffle( self.fileslist )
-
-        #print how many fiels per classes from the list
-        self.__print_num_of_classes( self.fileslist )
-
 
     def create_links(self, target_dir, sample_size ):
         """
@@ -139,92 +150,55 @@ class MakeSample():
         #remove the link previously existing:
         self.remove_links( target_dir, 'all' )
 
-        index = 0
         num = 0
-        n_skip = 0
-        newlist = []
-
         count_showers = 0
 
         if sample_size > len( self.fileslist ):
             sample_size = len( self.fileslist )
             print "resclaed sample size to: %d" % sample_size
 
-        if sample_size==0:
-            print "No files for class in folder %s" % target_dir
-            return
+        #make progression bar
+        widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()]
+        bar = progressbar.ProgressBar(maxval=sample_size, widgets=widgets )
+        bar.start()
 
         while num < sample_size:
 
-            self.__print_message( num, sample_size )
+            #self.__print_message( num, sample_size )
+            bar.update(num)
+            self.__count_classes( self.fileslist[num] )
 
-            if '_shower_' in self.fileslist[ num+n_skip ] and count_showers < 0.6*sample_size:
-                count_showers += 1
-            elif '_shower_' in self.fileslist[ num + n_skip ]:
-                n_skip +=1
-                continue
+            #make a soft link for the input to the given folder
+            fullname = self.fileslist[num].replace('_y.npy', '_x.tfrecord')
+            name = self.__get_name(fullname).split('.')[0]
+            ext = self.__get_extension(fullname)
+            fnum = self.__get_dirnum(fullname)
+            newname = name+'_'+fnum+'.'+ext
+            statement = "ln -s %s %s" % (fullname, target_dir+newname)
+            os.system(statement)
 
-            if num+n_skip < len( self.fileslist ):
-                fullname = self.fileslist[ num+n_skip ]
-            else:
-                print "Sample size length reached"
-                return
-
-            name = self.__get_name( fullname ) #isolate path
-            dirname = self.__get_labes_from_name(name)
-            extension = self.__get_extension(name)
-
-            #append num at the end as unique index for each file
-            newname = name.split('.')[0]+"_"+str(index)+"."+extension
-
-            if dirname !=0:
-
-                if 'validation/' in target_dir:
-                    #copy the file on eos for the validation sample
-                    statement = "scp %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
-                    os.system(statement)
-                    newlist.append( target_dir+"/"+dirname+"/"+newname )
-                else:
-                    #make a soft link in the given folder
-                    statement = "ln -s %s %s/%s/%s" % (fullname, target_dir, dirname, newname)
-                    os.system(statement)
-                    newlist.append( target_dir+"/"+dirname+"/"+newname )
-            else:
-                print 'Invalid label in filename!'
-                print 'Options are: track, shower, michel, none'
-
-            self.fileslist.remove(fullname)
-            index += 1
             num += 1
 
-        print "In folder %s " % target_dir
-        self.__print_num_of_classes( newlist )
+        bar.finish()
+        self.__print_classes(target_dir)
+        self.__reset_classes()
 
     def remove_links(self, target_dir, option ):
         """
         Remove dangling links
         """
+        print 'check links in folder: ' + target_dir
+        for file in os.listdir(target_dir):
+            statement = "rm -f %s" % (target_dir+'/'+file)
+            if option=='invalid':
+                if not os.path.exists(os.readlink(target_dir+'/'+file )):
+                    os.system(statement)
+            if option=='all':
+                os.system(statement)
 
-        listdir = [ dir for dir in os.listdir(target_dir)  ]
+class MakeTFRecord():
 
-        for dir in listdir:
-
-            print 'check links in folder: ' + target_dir+dir
-
-            for file in os.listdir(target_dir+dir):
-
-                statement = "rm -f %s" % (target_dir+dir+'/'+file)
-
-                if option=='invalid':
-                    if not os.path.exists(os.readlink(target_dir+dir+'/'+file )):
-                        os.system(statement)
-                if option=='all':
-                        os.system(statement)
-
-
-class MakeTFRecord(  ):
-
-    def __init__ ( self, dirname, tfrecord_name):
+    def __init__ (self, dirname, tfrecord_name):
 
         self.dirname = dirname
         self.record_name = tfrecord_name
@@ -253,12 +227,11 @@ class MakeTFRecord(  ):
 
         files = [ f for f in os.listdir(self.dirname) if '_x.npy' in f ]
 
-        for file in files:
-
+        for f in files:
             #check if the associated label file exists and import both .npy
-            if os.path.exists( self.dirname+file.replace('_x', '_y') ):
-                images = np.load(self.dirname+'/'+file)
-                labels = np.load( self.dirname+file.replace('_x', '_y') )
+            if os.path.exists( self.dirname+f.replace('_x', '_y') ):
+                images = np.load(self.dirname+f)
+                labels = np.load( self.dirname+f.replace('_x', '_y') )
             else:
                 print "file doesn't exist"
 
@@ -274,26 +247,55 @@ class MakeTFRecord(  ):
         writer.close()
         sys.stdout.flush()
 
-        return
+
+    def tfrecord_loop(self, batch_size, sess):
+
+            feature = {'image': tf.FixedLenFeature([], tf.string ),
+                       'label': tf.FixedLenFeature([], tf.string)}
+
+            def _parse_record(example_proto):
+                """
+                Parse .tfrecord files back into image and labels
+                """
+
+                example = tf.parse_single_example(example_proto, feature)
+                im = tf.decode_raw(example['image'], tf.float32)
+                im = tf.reshape(im, (66, 68, 1))
+
+                label = tf.decode_raw(example['label'], tf.int32)
+                label = tf.reshape(label, (4, 1))
+
+                return (im, label)
+
+            dataset =  tf.data.TFRecordDataset(self.record_name).map(_parse_record)
+            dataset = dataset.batch(batch_size) #no need to suffle
+
+            #make the iterator as one_shot_iterator
+            iter = dataset.make_one_shot_iterator()
+            el = iter.get_next()
+
+            while True:
+                try:
+                    ntuple = sess.run(el)
+                    yield ntuple
+                except tf.errors.OutOfRangeError:
+                    print 'Out of range'
+                    break
 
     def tfrecord2numpy(self):
-
-        #numpy_images = []
-        #numpy_labels = []
 
         with tf.Session() as sess:
 
             # define your tfrecord again. Remember that you saved your image as a string.
             feature = {'image': tf.FixedLenFeature([], tf.string),
-                       '3class': tf.FixedLenFeature([], tf.string),
-                       '1class': tf.FixedLenFeature([], tf.string)}
+                       'label': tf.FixedLenFeature([], tf.string)}
 
             # Create a list of filenames and pass it to a queue
             filename_queue = tf.train.string_input_producer([self.record_name], num_epochs=1)
 
             # Define a reader and read the next record
             reader = tf.TFRecordReader()
-            _, serialized_example = reader.read(filename_queue)
+            _ , serialized_example = reader.read(filename_queue)
 
             # Decode the record read by the reader
             np.shape(serialized_example)
@@ -304,16 +306,14 @@ class MakeTFRecord(  ):
             image = tf.decode_raw(features['image'], tf.float32)
 
             # Cast label data into int32
-            label3class = tf.decode_raw(features['3class'], tf.int32)
-            label1class = tf.decode_raw(features['1class'], tf.int32)
+            label = tf.decode_raw(features['label'], tf.int32)
 
             # Reshape image data into the original shape
             image = tf.reshape(image, [66, 68, 1])
-            label3class = tf.reshape(label3class, [3, 1])
-            label1class = tf.reshape(label1class, [1, 1])
+            label = tf.reshape(label, [4, 1])
 
-            images, labels = tf.train.shuffle_batch( [image, label3class, label1class],
-                                                      batch_size=1,
+            images, labels = tf.train.shuffle_batch( [image, label],
+                                                      batch_size=100,
                                                       capacity=2,
                                                       num_threads=1,
                                                       min_after_dequeue=1
@@ -327,7 +327,7 @@ class MakeTFRecord(  ):
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            img, l3class, l1class = sess.run([images, label3class, label1class])
+            img, label = sess.run([images, label])
             img = img.astype(np.float32)
 
             # Stop the threads
@@ -337,38 +337,40 @@ class MakeTFRecord(  ):
             coord.join(threads)
             sess.close()
 
-        return img, l3class, l1class
-
+        return img, label
 
 def main():
 
-    #    filelist="/data/ascarpel/images/particlegun/files.list"
-    #    training_size = int(sys.argv[1])
-    #    testing_size = int(sys.argv[2])
-    #    validation_size = int(sys.argv[3])
-    #
-    #    mysample = MakeSample()
-    #    mysample.make_list_from_file( filelist )
-    #
-    #    #check and remove invalid links
-    #    mysample.remove_links( "./training/", "all" )
-    #    mysample.remove_links( "./testing/", "all" )
-    #    mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "all" )
-    #
-    #    #previously created links are automatically removed
-    #    mysample.create_links( "./training/", training_size )
-    #    mysample.create_links( "./testing/", testing_size )
-    #    mysample.create_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", validation_size )
-    #
-    #    #check and remove invalid links
-    #    mysample.remove_links( "./training/", "invalid" )
-    #    mysample.remove_links( "./testing/", "invalid" )
-    #    ##mysample.remove_links( "/eos/user/a/ascarpel/CNN/particlegun/validation/", "invalid" )
+    filelist="/eos/user/a/ascarpel/CNN/particlegun/patches/labels.txt"
+    training_size = int(sys.argv[1])
+    testing_size = int(sys.argv[2])
+    validation_size = int(sys.argv[3])
 
-    mysample = MakeTFRecord("/data/ascarpel/", "/data/ascarpel/test.tfrecord")
-    mysample.numpy2tfrecord()
+    mysample = MakeSample()
+    #mysample.make_list_from_folder( '/eos/user/a/ascarpel/CNN/particlegun/patches/' )
+    mysample.make_list_from_file(filelist)
+
+    #previously created links are automatically removed
+    mysample.create_links( "./training/", training_size )
+    mysample.create_links( "./testing/", testing_size )
+    mysample.create_links( "./validation/", validation_size )
+
+    #check and remove invalid links
+    mysample.remove_links( "./training/", "invalid" )
+    mysample.remove_links( "./testing/", "invalid" )
+    mysample.remove_links( "./validation/", "invalid" )
+
+    print "All done"
+
+def checktfrecords():
+    mysample = MakeTFRecord("./", "./test.tfrecord")
+    with tf.Session() as sess:
+        labels = [img for img, label in mysample.tfrecord_loop(batch_size=1, sess=sess)]
+        print len(labels)
+        print labels
 
     print "All done"
 
 if __name__ == "__main__":
     main()
+    #checktfrecords()

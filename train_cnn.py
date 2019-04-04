@@ -2,8 +2,8 @@
 #
 #
 ################################################################################
-
 import argparse
+
 parser = argparse.ArgumentParser(description='Run CNN training on patches with a few different hyperparameter sets.')
 parser.add_argument('-c', '--config', help="JSON with script configuration", default='config.json')
 parser.add_argument('-o', '--output', help="Output model file name", default='model')
@@ -42,6 +42,7 @@ import json
 from utils import read_config
 from utils import get_label_1class, get_label_3class
 from utils import RecordHistory
+from utils import save_model
 
 #######################  read configuration file ###############################
 
@@ -160,12 +161,11 @@ def data_generator( filename, batch_size, img_rows, img_cols, sess):
         return (im, label)
 
     dataset =  tf.data.TFRecordDataset(filename).map( _parse_record )
-    dataset = dataset.shuffle(1000).batch(batch_size)
+    dataset = dataset.shuffle(1000).batch(batch_size).repeat()
     #add data augmentation
 
     #make the iterator as one_shot_iterator
     iter = dataset.make_one_shot_iterator()
-
     el = iter.get_next()
 
     while True:
@@ -175,9 +175,10 @@ def data_generator( filename, batch_size, img_rows, img_cols, sess):
             michel_netout = np.asarray([ get_label_1class(num) for num in ntuple[1] ])
             yield {'main_input': ntuple[0]}, {'em_trk_none_netout': em_trk_none, 'michel_netout': michel_netout}
         except tf.errors.OutOfRangeError:
+            print 'Out of range'
             break
 
-######################### Model fit ############################################
+######################### Callbacks ############################################
 
 history = RecordHistory()
 tb = TensorBoard( log_dir=args.output+'/logs',
@@ -192,11 +193,16 @@ if n_training/batch_size == 0:
 elif n_testing/batch_size == 0:
     print "testing steps not configured! "
 
+######################### Model fit ############################################
+
+training_input=[CNN_INPUT_DIR+'training/'+file.strip() for file in os.listdir(CNN_INPUT_DIR+'training/') if '.tfrecord' in file]
+testing_input=[CNN_INPUT_DIR+'testing/'+file.strip() for file in os.listdir(CNN_INPUT_DIR+'testing/') if '.tfrecord' in file]
+
 with tf.Session() as sess:
 
     print 'Fit config:', cfg_name
-    model.fit_generator( generator=data_generator( '/data/ascarpel/test.tfrecord', batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
-                          validation_data=data_generator( '/data/ascarpel/test.tfrecord', batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
+    model.fit_generator(  generator=data_generator(training_input, batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
+                          validation_data=data_generator(testing_input, batch_size, PATCH_SIZE_W, PATCH_SIZE_D, sess ),
                           steps_per_epoch=n_training/batch_size,
                           validation_steps=n_testing/batch_size,
                           epochs=nb_epoch,
@@ -207,12 +213,12 @@ with tf.Session() as sess:
 
 ######################### save history #########################################
 
-history.print_history()
-history.save_history(args.output)
+    history.print_history()
+    history.save_history(args.output)
 
-if save_model(model, args.output + cfg_name):
-    print('All done!')
-else:
-    print('Error: model not saved.')
+    if save_model(model, args.output + cfg_name):
+        print('All done!')
+    else:
+        print('Error: model not saved.')
 
 print "All done"
